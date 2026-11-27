@@ -79,6 +79,11 @@
 | 결정 | 모델 요청에 버전 필드를 둔다 (2026-11-27 사용자가 고름) |
 | 결정 | 메시지 내용은 텍스트만이 아니라 이미지·파일도 담을 수 있는 구조로 지금 잡는다 (2026-11-27 사용자 지시) |
 | 결정 | 메시지 내용에 문자열을 주면 텍스트 조각 하나로 바꿔 받는다(문자열 지름길) (2026-11-27 사용자가 고름) |
+| 결정 | 이미지·파일 조각의 출처에 저장된 파일(`StoredSource(file_id)`)을 지금 넣는다. file_id 를 실제 내용으로 바꾸는 일은 `FileStore` 계약을 만들 때 붙인다 (2026-11-27 사용자 지시) |
+| 결정 | 요청의 내용 조각이 모델이 받는 종류 안에 드는지는 core 의 `check_inputs(request, spec)` 가 검사한다 — 몰래 빼지 않고 오류 (2026-11-27 사용자가 고름) |
+| 결정 | `media_type` 은 `종류/세부` 모양만 검사한다. 허용 목록은 두지 않는다 — 공급자마다 달라서 (2026-11-27 사용자가 고름) |
+| 결정 | 모델 요청 계약 코드는 에이전트가 정리한 모양대로 쓰고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
+| 결정 | 모델 응답 `ModelResponse` — 본문은 요청의 `Message`(role=assistant)를 다시 쓴다. 종료 사유는 stop·length·tool_calls·content_filter·other 로 고정하고 공급자의 원래 값은 `finish_detail` 에 둔다. 실패는 응답이 아니라 예외 `ModelCallFailed`(종류·다시 시도할 만한지)로 낸다. 사용량에 비용(`cost`)을 선택 필드로 둔다. 코드는 에이전트가 쓰고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
 | 결정 | 오브젝트 스토리지를 도입한다. 메시지의 이미지·파일 조각이 저장된 파일을 가리킬 수 있게 한다 (2026-11-27 사용자 지시) |
 | 결정 | 오브젝트 스토리지는 SeaweedFS 다 (2026-11-27 사용자가 고름) |
 | 제안 — 사용자 확인 전 | infra 는 S3 API 로만 말한다(클라이언트 boto3). core 는 스토리지를 모르고, 파일은 우리 쪽 ID(`file_id`)로 가리킨다. 파일 정보는 Postgres, 내용은 SeaweedFS |
@@ -91,7 +96,7 @@
 | 결정 | REST 진입 계층의 웹 프레임워크는 FastAPI 다. 자리는 runtime 의 `rest/` 다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
-| 진행 단계 | W0 이전 — core 에 모델 대응표 계약(`contracts/model/`), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 요청(`ModelRequest`)은 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
+| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 공급자 계약(프로바이더 인터페이스)과 파일 계약(`FileStore`)은 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
 
 ## 6. 저장소 구성
 
@@ -124,7 +129,8 @@ agent-builder-runtime/  계약 구현·조립·진입점 — infra 의 값을 co
 ```
 agent_builder_core/                     계약
   contracts/                공통 계약 (Protocol). 특정 기술의 말을 쓰지 않는다
-    model/                  content.py(InputKind) · catalog.py(ModelSpec·ModelCatalog·resolve_model)
+    envelope.py             Envelope — 봉투 규칙(모르는 필드 거부·만든 뒤 불변)의 부모
+    model/                  content.py(InputKind·조각·출처) · request.py(ModelRequest) · response.py(ModelResponse·ModelCallFailed·parse_output) · catalog.py(ModelSpec·ModelCatalog·resolve_model·check_inputs)
   workflow/ · run/ · assist/   개념 패키지
   <개념>/
     schemas.py              Pydantic 모델 — 주고받는 데이터의 모양

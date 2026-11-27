@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-builder-runtime"
+version = "0.1.0"
+description = "에이전트 빌더의 실행 진입점 — CLI·REST. core 의 계약과 infra 의 구성을 묶어 돌린다"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    # 같은 저장소의 core·infra. 설치할 때 로컬 경로를 같이 넘긴다 (AGENTS.md 6절).
+    "agent-builder-core",
+    "agent-builder-infra",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 오타 난 마커·설정을 조용히 넘기지 않는다.
+addopts = "--strict-markers --strict-config"

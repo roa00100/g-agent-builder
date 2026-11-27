@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from agent_builder_runtime.container import close_all
-from agent_builder_runtime.rest import model_catalog, model_provider
+from agent_builder_runtime.rest import model, model_catalog, model_provider
 from agent_builder_runtime.settings import get_runtime_settings
 
 
@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
         """서버가 떠 있는지만 본다. DB·Redis 는 확인하지 않는다."""
         return {"status": "ok"}
 
+    app.include_router(model.router)
     app.include_router(model_catalog.router)
     app.include_router(model_provider.router)
     return app

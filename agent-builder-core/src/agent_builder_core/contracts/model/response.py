@@ -50,6 +50,9 @@ class ModelResponse(Envelope):
     usage: Usage
     # 보내고 받기까지 걸린 시간. 어댑터가 잰다.
     latency_ms: int = Field(ge=0)
+    # 공급자 뒤에서 실제로 답한 곳. 공급자가 알려 줄 때만
+    # (OpenRouter 는 본문의 provider 로 준다, 예: OpenAI).
+    upstream_provider: str | None = None
 
     @model_validator(mode="after")
     def _check_message(self) -> "ModelResponse":
@@ -81,6 +84,11 @@ _RETRYABLE: frozenset[FailureKind] = frozenset(
 )
 
 
+def is_retryable(kind: FailureKind) -> bool:
+    """그 종류의 실패가 다시 보내 볼 만한가."""
+    return kind in _RETRYABLE
+
+
 class ModelCallFailed(Exception):
     """모델 호출이 응답을 돌려주지 못했다.
 
@@ -96,7 +104,7 @@ class ModelCallFailed(Exception):
 
     @property
     def retryable(self) -> bool:
-        return self.kind in _RETRYABLE
+        return is_retryable(self.kind)
 
 
 def parse_output[M: BaseModel](response: ModelResponse, model: type[M]) -> M:

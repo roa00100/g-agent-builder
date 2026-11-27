@@ -3,7 +3,8 @@
 from agent_builder_core.model.service import (
     ModelGateway,
     ProviderMismatch,
+    RecordErrorHandler,
     UnresolvedSource,
 )
 
-__all__ = ["ModelGateway", "ProviderMismatch", "UnresolvedSource"]
+__all__ = ["ModelGateway", "ProviderMismatch", "RecordErrorHandler", "UnresolvedSource"]

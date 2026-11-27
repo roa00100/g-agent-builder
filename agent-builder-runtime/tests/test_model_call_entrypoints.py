@@ -58,7 +58,7 @@ def use_gateway(monkeypatch):
 # --- 명령줄 ---
 
 
-def test_cli_call_prints_text_and_summary(use_gateway, capsys):
+def test_cli_call_prints_only_text(use_gateway, capsys):
     gateway = use_gateway(FakeGateway())
 
     code = main(
@@ -68,9 +68,8 @@ def test_cli_call_prints_text_and_summary(use_gateway, capsys):
     out, err = capsys.readouterr()
     assert code == 0
     assert out.strip() == "안녕하세요"
-    assert "vendor/model-a" in err
-    assert "0.0001 크레딧" in err
-    assert "321ms" in err
+    # 요약은 로그(model.call.done)가 맡는다 — 명령이 따로 찍지 않는다.
+    assert "vendor/model-a" not in err
     sent = gateway.requests[0]
     assert (sent.model, sent.system, sent.params.max_output_tokens) == (
         "fast",

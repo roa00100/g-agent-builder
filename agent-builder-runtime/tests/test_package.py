@@ -30,6 +30,7 @@ import pytest
         "agent_builder_runtime.rest.model_catalog",
         "agent_builder_runtime.rest.model_provider",
         "agent_builder_runtime.settings",
+        "agent_builder_runtime.observability",
     ],
 )
 def test_package_imports(name):
@@ -80,6 +81,32 @@ def test_web_framework_only_in_rest():
                 names = [node.module]
             for name in names:
                 if name.split(".")[0] in {"fastapi", "starlette", "uvicorn"}:
+                    found.append(f"{path.name}: {name}")
+
+    assert found == []
+
+
+def test_observability_technology_only_through_infra():
+    # 로그·추적은 infra 의 observability 를 거친다. 예외는 rest/ 의 FastAPI 계측 하나 —
+    # 웹 프레임워크를 아는 계측이라 웹 프레임워크와 같은 자리에 둔다.
+    import agent_builder_runtime
+
+    src = Path(agent_builder_runtime.__file__).parent
+    found = []
+    for path in src.rglob("*.py"):
+        in_rest = "rest" in path.relative_to(src).parts
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            for name in names:
+                if name.split(".")[0] == "structlog":
+                    found.append(f"{path.name}: {name}")
+                elif name.split(".")[0] == "opentelemetry" and not (
+                    in_rest and name.startswith("opentelemetry.instrumentation.fastapi")
+                ):
                     found.append(f"{path.name}: {name}")
 
     assert found == []

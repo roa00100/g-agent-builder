@@ -16,11 +16,14 @@ from agent_builder_core.contracts.model import (
     ModelSpec,
 )
 from agent_builder_infra.clients.openrouter import OpenRouterCallError
+from agent_builder_infra.observability import get_logger
 from agent_builder_runtime.model_adapters.connections import ProviderConnection
 from agent_builder_runtime.model_adapters.openrouter.errors import kind_for_call_error
 from agent_builder_runtime.model_adapters.openrouter.request import to_payload
 from agent_builder_runtime.model_adapters.openrouter.response import to_response
 from agent_builder_runtime.repositories.provider_profile import MissingApiKey
+
+log = get_logger(__name__)
 
 
 class ConnectionSource(Protocol):
@@ -45,12 +48,27 @@ class OpenRouterAdapter:
             raise ModelCallFailed("auth", request.request_id, str(error)) from error
         # 모델별 대기 시간이 있으면 그것을, 없으면 공급자 기본값을 쓴다.
         timeout_seconds = spec.timeout_seconds or provider.timeout_seconds
+        log.debug(
+            "openrouter.send",
+            provider_model=spec.provider_model,
+            timeout_seconds=timeout_seconds,
+            timeout_from="model" if spec.timeout_seconds else "provider",
+        )
+        # 보내는 본문 그대로. 키는 본문에 없다(연결점이 헤더로 붙인다).
+        log.trace("openrouter.payload", payload=payload)
         started = time.monotonic()
         try:
             body = provider.connection.chat(payload, timeout_seconds=timeout_seconds)
         except OpenRouterCallError as error:
+            log.debug(
+                "openrouter.error",
+                reason=error.reason,
+                status_code=error.status_code,
+                detail=error.detail,
+            )
             raise ModelCallFailed(
                 kind_for_call_error(error), request.request_id, error.detail
             ) from error
         latency_ms = int((time.monotonic() - started) * 1000)
+        log.trace("openrouter.body", body=body)
         return to_response(body, request, spec, latency_ms)

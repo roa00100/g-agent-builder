@@ -7,6 +7,7 @@
 import argparse
 from collections.abc import Sequence
 
+from agent_builder_infra.observability import span
 from agent_builder_runtime.cli import model, model_catalog, model_provider
 
 # 묶음을 더하면 여기에 모듈을 넣는다.
@@ -22,4 +23,8 @@ def run(argv: Sequence[str]) -> int:
     for group in _GROUPS:
         group.register(groups)
     args = parser.parse_args(list(argv))
-    return args.run(args)
+    # 명령 하나가 추적 하나의 뿌리 span 이 된다.
+    command = getattr(args, "command", None)
+    with span(f"cli {args.group} {command}", **{"cli.group": args.group}):
+        return args.run(args)
+    return None

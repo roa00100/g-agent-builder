@@ -12,10 +12,13 @@ import sys
 from collections.abc import Sequence
 from typing import get_args
 
+from agent_builder_runtime.observability import setup_observability
 from agent_builder_runtime.settings import Profile, get_runtime_settings
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # 연결을 만들기 전에 켜야 DB·Redis·HTTP 호출이 span 으로 잡힌다.
+    setup_observability()
     profile, rest_of_args = _pick_profile(sys.argv[1:] if argv is None else argv)
     if profile == "rest":
         # 웹 프레임워크는 rest 모드에서만 불러온다.

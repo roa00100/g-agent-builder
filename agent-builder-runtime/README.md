@@ -34,6 +34,14 @@
 
 `--inputs` 는 그 모델이 받는 조각(text·image·file)이다. 기본은 `text` 다. 종료 코드는 0 성공, 1 없는 이름, 2 입력값 오류.
 
+### 모델 부르기
+
+```powershell
+..\.venv\Scripts\python -m agent_builder_runtime model call fast "안녕" --max-tokens 50
+```
+
+답은 stdout 에 찍는다. 실제 모델·토큰·비용·걸린 시간은 stderr 의 INFO 로그 `model.call.done` 에 있다. 종료 코드는 0 성공, 1 없거나 꺼진 모델·공급자, 2 입력값 오류, 3 호출 실패. REST 는 `POST /model/call`.
+
 ### 공급자 프로필 (키는 어디에도 찍히지 않는다)
 
 ```powershell
@@ -64,6 +72,22 @@
 | `PUT /model-provider/{name}` | 주소·대기 시간 넣거나 바꾸기 |
 | `PUT /model-provider/{name}/api-key` | API 키 넣기 — 응답에 키 없음(204) |
 | `PATCH`·`DELETE /model-provider/{name}` | 켜고 끄기, 지우기 |
+
+### 로그와 추적
+
+입구(`__main__`·`create_app`)가 맨 먼저 관측을 켠다. 명령 하나·REST 요청 하나가 추적 하나의 뿌리 span 이고, 그 아래로 `ModelGateway.complete` → `ModelCatalogRepository.get` → `OpenRouterAdapter.complete` → `ProviderConnections.get` → `ProviderProfileRepository.get` 와 SQL·Redis·HTTP 호출이 붙는다.
+
+```powershell
+$env:LOG_LEVEL = "TRACE"; ..\.venv\Scripts\python -m agent_builder_runtime model call fast "안녕" --max-tokens 50
+```
+
+| 단계 | 남는 것 |
+|---|---|
+| INFO | `model.call.done` — 모델·실제 모델·종료 사유·토큰·비용·걸린 시간·request_id. 실패는 WARNING `model.call.failed`·`model.call.rejected` |
+| DEBUG | 캐시 적중(`model_catalog.cache`·`provider_profile.cache`), 연결 열기(`provider.connection.open`), 고른 대기 시간(`openrouter.send`) |
+| TRACE | 요청·응답 전체(`model.request`·`model.response`), 공급자에 보낸 본문과 받은 본문(`openrouter.payload`·`openrouter.body`) |
+
+span 에는 숫자와 모양만 있고, 보낸 문장은 TRACE 로그에만 있다. 화면은 infra README 의 「로그와 추적」을 본다.
 
 컨테이너 안에서(저장소 루트에서): `docker compose run --rm app python -m agent_builder_runtime model-catalog list`
 

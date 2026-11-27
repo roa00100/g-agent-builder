@@ -10,7 +10,10 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from agent_builder_core.contracts.model import UnknownProvider
+from agent_builder_infra.observability import get_logger
 from agent_builder_runtime.repositories.provider_profile import ProviderProfile
+
+log = get_logger(__name__)
 
 
 class Connection(Protocol):
@@ -54,6 +57,12 @@ class ProviderConnections:
             raise UnknownProvider(f"꺼 둔 공급자: {name}")
         opened = self._open.get(name)
         if opened is None or opened[0] != profile.updated_at:
+            # 처음 여는지, 프로필이 바뀌어 다시 여는지 남긴다.
+            log.debug(
+                "provider.connection.open",
+                provider=name,
+                reason="first" if opened is None else "profile_changed",
+            )
             if opened is not None:
                 _close(opened[1])
             connection = self._connect(

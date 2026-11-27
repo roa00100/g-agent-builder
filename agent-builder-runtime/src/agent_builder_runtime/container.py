@@ -10,8 +10,10 @@ get_db().fetch_all("select ...")
 
 from functools import lru_cache
 
+from agent_builder_core.contracts.model import ModelCatalog
 from agent_builder_core.model import ModelGateway
 from agent_builder_infra.clients.openrouter import OpenRouterClient
+from agent_builder_infra.observability import traced
 from agent_builder_infra.providers.object_storage import ObjectStorageProvider
 from agent_builder_infra.providers.postgres import PostgresProvider
 from agent_builder_infra.providers.redis import RedisProvider
@@ -24,6 +26,7 @@ from agent_builder_runtime.model_adapters import (
     OpenRouterAdapter,
     ProviderConnections,
 )
+from agent_builder_runtime.observability import trace_gateway
 from agent_builder_runtime.repositories import (
     ModelCatalogRepository,
     ProviderProfileRepository,
@@ -67,9 +70,13 @@ def get_object_storage() -> ObjectStorageService:
 
 
 @lru_cache
-def get_model_catalog() -> ModelCatalogRepository:
-    """core 의 ModelCatalog 를 채우는 구현."""
-    return ModelCatalogRepository(get_db(), get_redis())
+def get_model_catalog() -> ModelCatalog:
+    """core 의 ModelCatalog 를 채우는 구현. 메서드마다 span 을 연다."""
+    return traced(
+        ModelCatalogRepository(get_db(), get_redis()),
+        "ModelCatalogRepository",
+        ("get", "list", "upsert", "set_enabled", "delete"),
+    )
 
 
 @lru_cache
@@ -84,7 +91,12 @@ def get_cipher() -> FernetCipher:
 @lru_cache
 def get_provider_profiles() -> ProviderProfileRepository:
     # 마스터 키는 키를 풀거나 넣을 때만 필요해서, 만들 함수를 넘긴다.
-    return ProviderProfileRepository(get_db(), get_redis(), get_cipher)
+    # span 에는 메서드 이름만 남는다 — 넘긴 값(키 등)은 남지 않는다.
+    return traced(
+        ProviderProfileRepository(get_db(), get_redis(), get_cipher),
+        "ProviderProfileRepository",
+        ("get", "list", "api_key", "save", "set_api_key", "set_enabled", "delete"),
+    )
 
 
 @lru_cache
@@ -93,22 +105,28 @@ def get_provider_connections() -> ProviderConnections:
 
     지금 공급자는 OpenRouter 하나라, 연결점도 OpenRouterClient 하나로 만든다.
     """
-    return ProviderConnections(
+    connections = ProviderConnections(
         get_provider_profiles(),
         connect=lambda base_url, api_key: OpenRouterClient(
             api_key=api_key, base_url=base_url
         ),
     )
+    return traced(connections, "ProviderConnections", ("get",))
 
 
 @lru_cache
 def get_model_gateway() -> ModelGateway:
-    """모델 호출 서비스.
+    """모델 호출 서비스. 호출 하나가 span 하나다(trace_gateway).
 
     공급자는 이름으로 고른다 — 대응표의 ModelSpec.provider 와 같은 값.
     """
-    openrouter = OpenRouterAdapter(get_provider_connections())
-    return ModelGateway(get_model_catalog(), {openrouter.name: openrouter})
+    openrouter = traced(
+        OpenRouterAdapter(get_provider_connections()),
+        "OpenRouterAdapter",
+        ("complete",),
+    )
+    gateway = ModelGateway(get_model_catalog(), {openrouter.name: openrouter})
+    return trace_gateway(gateway)
 
 
 def close_all() -> None:

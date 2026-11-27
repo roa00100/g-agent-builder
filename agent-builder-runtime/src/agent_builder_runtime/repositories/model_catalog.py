@@ -15,12 +15,15 @@ from datetime import timedelta
 
 from agent_builder_core.contracts.model import ModelSpec, UnknownModel
 from agent_builder_infra import crud
+from agent_builder_infra.observability import get_logger
 from agent_builder_infra.services import DbService, RedisService, redis_key
 from agent_builder_infra.tables.model_alias import ModelAliasRow
 
 # 캐시 수명 5분. 표는 거의 바뀌지 않고, 고칠 때 캐시를 바로 지우므로 수명은 안전망이다
 # (고친 직후의 찾기가 옛 값을 다시 담는 드문 경우에도 5분 뒤에는 맞춰진다).
 CACHE_TTL = timedelta(minutes=5)
+
+log = get_logger(__name__)
 
 
 class ModelCatalogRepository:
@@ -35,10 +38,12 @@ class ModelCatalogRepository:
     def get(self, name: str) -> ModelSpec | None:
         cached = self._redis.get_model(_cache_key(name), ModelSpec)
         if cached is not None:
+            log.debug("model_catalog.cache", name=name, hit=True)
             return cached
         with self._db.session_scope() as session:
             row = crud.find_by_id(session, ModelAliasRow, name)
             spec = None if row is None else _to_spec(row)
+        log.debug("model_catalog.cache", name=name, hit=False, found=spec is not None)
         if spec is not None:
             self._redis.set_model(_cache_key(name), spec, ttl=CACHE_TTL)
         return spec

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agent_builder_core.contracts.model import UnknownProvider
 from agent_builder_infra import crud
+from agent_builder_infra.observability import get_logger
 from agent_builder_infra.services import (
     DbService,
     FernetCipher,
@@ -25,6 +26,8 @@ from agent_builder_infra.tables.model_provider import ModelProviderRow
 
 # 캐시 수명 5분. 모델 대응표와 같은 까닭 — 고칠 때 바로 지우므로 수명은 안전망이다.
 CACHE_TTL = timedelta(minutes=5)
+
+log = get_logger(__name__)
 
 
 class MissingApiKey(RuntimeError):
@@ -73,10 +76,14 @@ class ProviderProfileRepository:
     def get(self, name: str) -> ProviderProfile | None:
         cached = self._redis.get_model(_cache_key(name), ProviderProfile)
         if cached is not None:
+            log.debug("provider_profile.cache", name=name, hit=True)
             return cached
         with self._db.session_scope() as session:
             row = crud.find_by_id(session, ModelProviderRow, name)
             profile = None if row is None else _to_profile(row)
+        log.debug(
+            "provider_profile.cache", name=name, hit=False, found=profile is not None
+        )
         if profile is not None:
             self._redis.set_model(_cache_key(name), profile, ttl=CACHE_TTL)
         return profile

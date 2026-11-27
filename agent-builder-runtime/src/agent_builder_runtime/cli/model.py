@@ -4,7 +4,9 @@ python -m agent_builder_runtime model call fast "안녕" --max-tokens 200
 python -m agent_builder_runtime model call fast "요약해 줘" \\
     --system "짧게 답한다" --max-tokens 300
 
-응답 텍스트를 찍고, 그 아래에 실제 모델·종료 사유·토큰·비용·걸린 시간을 한 줄로 찍는다.
+응답 텍스트만 stdout 에 찍는다. 실제 모델·종료 사유·토큰·비용·걸린 시간은 INFO 로그
+model.call.done 한 줄(stderr)에 있다 — 같은 것을 여기서 또 찍지 않는다.
+실패는 여기서도 찍는다 — 종료 코드의 까닭은 로그 단계와 상관없이 보여야 해서.
 """
 
 import argparse
@@ -16,7 +18,6 @@ from agent_builder_core.contracts.model import (
     DisabledModel,
     ModelCallFailed,
     ModelRequest,
-    ModelResponse,
     UnknownModel,
     UnknownProvider,
     UnsupportedInput,
@@ -67,16 +68,4 @@ def run(args: argparse.Namespace) -> int:
     finally:
         close_all()
     print(response.text())
-    print(_summary(response), file=sys.stderr)
     return 0
-
-
-def _summary(response: ModelResponse) -> str:
-    usage = response.usage
-    cost = "모름" if usage.cost is None else f"{usage.cost} 크레딧"
-    return (
-        f"[{response.provider_model} · {response.finish_reason}"
-        f"({response.finish_detail}) · 입력 {usage.input_tokens} / "
-        f"출력 {usage.output_tokens} 토큰 · 비용 {cost} · "
-        f"{response.latency_ms}ms · request_id {response.request_id}]"
-    )

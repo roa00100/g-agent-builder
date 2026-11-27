@@ -109,6 +109,8 @@ services:
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       STORAGE_BUCKET: ${STORAGE_BUCKET}
+      # 공급자 키를 풀 마스터 키. 키·주소·대기 시간 자체는 DB 의 공급자 프로필에 있다.
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-}
     depends_on:
       db:
         condition: service_healthy

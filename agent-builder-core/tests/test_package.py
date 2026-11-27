@@ -6,6 +6,7 @@ import pytest
 PACKAGES = [
     "agent_builder_core",
     "agent_builder_core.contracts",
+    "agent_builder_core.contracts.model",
     "agent_builder_core.workflow",
     "agent_builder_core.run",
     "agent_builder_core.assist",

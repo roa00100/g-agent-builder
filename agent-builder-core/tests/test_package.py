@@ -26,6 +26,9 @@ FORBIDDEN = [
     "openai",
     "alembic",
     "boto3",
+    # 관측도 기술이다 — core 에는 추적·로그 코드를 넣지 않는다.
+    "opentelemetry",
+    "structlog",
     "agent_builder_infra",
     "agent_builder_runtime",
 ]

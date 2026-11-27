@@ -14,7 +14,7 @@ from agent_builder_runtime.cli import model, model_catalog, model_provider
 _GROUPS = (model, model_catalog, model_provider)
 
 
-def run(argv: Sequence[str]) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m agent_builder_runtime [--profile cli]",
         description="에이전트 빌더 명령줄.",
@@ -22,7 +22,11 @@ def run(argv: Sequence[str]) -> int:
     groups = parser.add_subparsers(dest="group", required=True)
     for group in _GROUPS:
         group.register(groups)
-    args = parser.parse_args(list(argv))
+    return parser
+
+
+def run(argv: Sequence[str]) -> int:
+    args = build_parser().parse_args(list(argv))
     # 명령 하나가 추적 하나의 뿌리 span 이 된다.
     command = getattr(args, "command", None)
     with span(f"cli {args.group} {command}", **{"cli.group": args.group}):

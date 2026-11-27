@@ -48,7 +48,7 @@ def register(groups: argparse._SubParsersAction) -> None:
     set_parser.add_argument(
         "--timeout", type=float, required=True, help="호출 한 번을 기다릴 기본 시간(초)"
     )
-    key_parser = sub.add_parser("set-key", help="API 키 넣기 — 암호화해 저장한다")
+    key_parser = sub.add_parser("set-key", help="API 키 넣기 (암호화해 저장한다)")
     key_parser.add_argument("name")
     key_parser.add_argument(
         "--stdin",

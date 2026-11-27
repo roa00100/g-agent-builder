@@ -42,6 +42,8 @@
 
 답은 stdout 에 찍는다. 실제 모델·토큰·비용·걸린 시간은 stderr 의 INFO 로그 `model.call.done` 에 있다. 종료 코드는 0 성공, 1 없거나 꺼진 모델·공급자, 2 입력값 오류, 3 호출 실패. REST 는 `POST /model/call`.
 
+호출 기록은 `model calls --limit 20`(최근 것부터)·`model call-show <request_id>` 로 본다.
+
 ### 공급자 프로필 (키는 어디에도 찍히지 않는다)
 
 ```powershell
@@ -68,6 +70,9 @@
 | `PUT /model-catalog/{name}` | 넣거나 바꾸기. 본문은 `ModelSpec`, 이름은 경로와 같아야 한다(다르면 400) |
 | `PATCH /model-catalog/{name}` | 켜고 끄기. 본문 `{"enabled": true}` — 없으면 404 |
 | `DELETE /model-catalog/{name}` | 지우기 — 없으면 404 |
+| `POST /model/call` | 모델 부르기. 본문은 `ModelRequest` |
+| `GET /model/calls?limit=20` | 호출 기록, 최근 것부터 (limit 1~500) |
+| `GET /model/calls/{request_id}` | 호출 기록 한 줄 — 없으면 404 |
 | `GET /model-provider`, `GET /model-provider/{name}` | 공급자 프로필 (키는 `has_api_key` 로 있음·없음만) |
 | `PUT /model-provider/{name}` | 주소·대기 시간 넣거나 바꾸기 |
 | `PUT /model-provider/{name}/api-key` | API 키 넣기 — 응답에 키 없음(204) |

@@ -97,10 +97,12 @@
 | 결정 | runtime 의 실행 모드는 `__main__` 에서 프로필(cli / rest)로 고른다 (2026-11-27 사용자 지시) |
 | 결정 | 관측 — 추적은 OpenTelemetry(업체 중립, 나중에 Datadog 으로도 보냄), 구조적 로그는 structlog. 로그 단계는 TRACE(5)·DEBUG·INFO·WARNING·ERROR — INFO 흐름 요약, DEBUG 갈림길과 모양, TRACE 오간 데이터 전체(기본 꺼짐). 비밀(API 키·Authorization·암호문)은 단계와 상관없이 지운다. core 에는 추적 코드를 넣지 않고 runtime 이 계약 구현과 Gateway 를 span 으로 감싼다. 로컬 추적 화면은 Jaeger(compose 선택 서비스) (2026-11-27 사용자가 고름) |
 | 제안 — 설정됨, 사용자 확인 전 | 관측의 구현 모양. SQL span 은 공식 계측(opentelemetry-instrumentation-sqlalchemy 0.66b2) 대신 SQLAlchemy 이벤트로 직접 건다 — 공식 계측이 SQLAlchemy 2.1 을 받지 않고, 켜면 asyncio(greenlet)까지 불러와서. HTTP 는 `httpx2` 계측 — openai SDK 3.x 가 httpx2 로 보낸다. span 에는 넘긴 값(SQL 값·Redis 값·HTTP 헤더)과 오간 문장을 넣지 않고, 문장은 TRACE 로그에만 둔다. 계약 구현은 container 에서 `traced()` 로 메서드를 바꿔 끼워 감싼다(클래스가 그대로라 계약 isinstance 가 맞는다). Gateway 는 runtime `trace_gateway()` 가 감싸 INFO `model.call.done` 한 줄을 남긴다 |
+| 결정 | 호출 기록 — 공급자에 보낸 호출 한 번마다 Postgres(테이블 `model_call`)에 한 줄을 남긴다. 보내기 전에 막힌 것은 남기지 않는다. 기록에 실패해도 응답은 그대로 돌려주고 ERROR 로그(`model.call.record_failed`)로 알린다. 숫자와 모양만 남기고 보낸 문장·받은 답은 남기지 않는다. `ModelResponse` 에 선택 필드 `upstream_provider`(OpenRouter 가 알려 주는 실제 공급사)를 더하고 기록에도 남긴다 (2026-11-27 사용자가 고름) |
+| 제안 — 설정됨, 사용자 확인 전 | 호출 기록의 구현 모양. core 계약 `CallRecord`·`CallLog`(record·get·list — 고치기·지우기 없음). `ModelGateway` 가 `CallLog` 와 기록 실패 알림 함수(`on_record_error`)를 생성자로 받아 기록한다 — core 는 로그를 모르므로 알리는 방법은 조립(runtime `report_record_error`)이 정한다. 실패 기록의 걸린 시간은 Gateway 가 잰다. `ProviderMismatch` 는 보낸 것이라 실패(`unknown`)로 남기고 응답의 숫자는 넣지 않는다. 요청의 `TraceContext` 를 run_id·step_id·attempt 로 옮겨 둔다. 비용 열은 정밀도 없는 NUMERIC. 입구는 `model calls`·`model call-show`, `GET /model/calls`·`GET /model/calls/{request_id}`. infra `crud` 의 앞 인자를 위치 전용으로 바꿨다 — 열 이름 `model` 이 인자 이름과 부딪혀서 |
 | 결정 | REST 진입 계층의 웹 프레임워크는 FastAPI 다. 자리는 runtime 의 `rest/` 다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
-| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표)·`model_provider`(공급자 프로필) 둘이다. 모델 호출 입구(`model call`·`POST /model/call`)와 관측(로그·추적, 로컬 Jaeger)이 있다. 호출 기록(비용)은 아직 없다 |
+| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 모델 호출 입구(`model call`·`POST /model/call`)와 관측(로그·추적, 로컬 Jaeger)이 있다. 호출 기록(테이블 `model_call`, `model calls`)이 있다. 테이블은 셋이다(`model_alias`·`model_provider`·`model_call`) |
 
 ## 6. 저장소 구성
 
@@ -120,7 +122,7 @@ agent-builder-core/     계약 — 특정 기술을 모른다. DB 없이 테스�
   tests/
 agent-builder-infra/    기술 구성 — 접속·공통 서비스·테이블 정의. core 의 정의를 가져다 쓸 수 있다
   Dockerfile
-  alembic.ini · migrations/ 스키마 변경 (마이그레이션 2개: model_alias, model_provider·모델별 대기 시간)
+  alembic.ini · migrations/ 스키마 변경 (마이그레이션 3개: model_alias, model_provider·모델별 대기 시간, model_call)
   src/agent_builder_infra/
   tests/                    실제 PostgreSQL·Redis·SeaweedFS 에 붙는다
 agent-builder-runtime/  계약 구현·조립·진입점 — infra 의 값을 core 의 계약에 맞추고, CLI(지금)·REST(나중)로 돌린다
@@ -134,8 +136,8 @@ agent-builder-runtime/  계약 구현·조립·진입점 — infra 의 값을 co
 agent_builder_core/                     계약
   contracts/                공통 계약 (Protocol). 특정 기술의 말을 쓰지 않는다
     envelope.py             Envelope — 봉투 규칙(모르는 필드 거부·만든 뒤 불변)의 부모
-    model/                  content.py(InputKind·조각·출처) · request.py(ModelRequest) · response.py(ModelResponse·ModelCallFailed·parse_output) · provider.py(ModelProvider·UnknownProvider) · catalog.py(ModelSpec·ModelCatalog·resolve_model·check_inputs)
-  model/                    모델 호출 서비스 — ModelGateway (대응표 찾기 → check_inputs → 공급자 고르기 → 보내기)
+    model/                  content.py(InputKind·조각·출처) · request.py(ModelRequest) · response.py(ModelResponse·ModelCallFailed·parse_output) · provider.py(ModelProvider·UnknownProvider) · catalog.py(ModelSpec·ModelCatalog·resolve_model·check_inputs) · record.py(CallRecord·CallLog)
+  model/                    모델 호출 서비스 — ModelGateway (대응표 찾기 → check_inputs → 공급자 고르기 → 보내기 → 기록하기)
   workflow/ · run/ · assist/   개념 패키지
   <개념>/
     schemas.py              Pydantic 모델 — 주고받는 데이터의 모양
@@ -157,14 +159,16 @@ agent_builder_infra/                    기술 구성
     tracing.py              OpenTelemetry 설정(OTLP 로 보내기는 주소가 있을 때만)·자동 계측(Redis·httpx2·botocore)·span·traced
     sql.py                  SQL 실행마다 span (SQLAlchemy 이벤트)
   orm.py                    테이블 모델의 부모 Base
-  crud.py                   ORM 공통 CRUD — 세션만 받는다
+  crud.py                   ORM 공통 CRUD — 세션만 받는다 (앞 인자는 위치 전용 — 열 이름과 부딪히지 않게)
   tables/                   테이블 정의 (SQLAlchemy ORM 매핑, Base 상속) — 테이블마다 파일 하나. 실제 DDL 은 migrations/
     model_alias.py          ModelAliasRow (모델별 대기 시간 덮어쓰기 timeout_seconds 포함)
+    model_call.py           ModelCallRow — 호출 기록 (성공·실패 열 제약, started_at·run_id 색인)
     model_provider.py       ModelProviderRow — 공급자 프로필 (주소·API 키 암호문·기본 대기 시간·켜짐)
 
 agent_builder_runtime/                  계약 구현·조립·진입점
   repositories/             core 계약의 구현 — infra 의 값 ↔ core 의 모양. SQLAlchemy 를 직접 쓰지 않는다
     model_catalog.py        ModelCatalogRepository (테이블 model_alias + Redis 캐시)
+    call_log.py             CallLogRepository — 호출 기록 (테이블 model_call, 캐시 없음)
     provider_profile.py     ProviderProfileRepository — 공급자 프로필 (테이블 model_provider + Redis 캐시, 키는 어디서나 암호문)
   model_adapters/          core 의 ModelProvider 구현 — 공급자마다 하나. openai SDK 를 직접 쓰지 않는다
     connections.py          ProviderConnections — 프로필로 연결점을 만들고, 프로필이 바뀌면(updated_at) 새로 만든다

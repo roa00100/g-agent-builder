@@ -14,6 +14,7 @@ core 의 정의(예: `InputKind`)는 가져다 쓴다. infra 의 값을 계약�
 | `services/cipher.py` | `FernetCipher` — 비밀 값(공급자 API 키 등)을 마스터 키(`SECRET_ENCRYPTION_KEY`)로 암호화·복호화. 키가 다르거나 암호문이 바뀌면 `CipherError` |
 | `orm.py` | 테이블 모델의 부모 `Base` |
 | `crud.py` | ORM 모델 공통 `find_by_id`·`find_all`·`count`·`create`·`update`·`delete`. 세션은 인자로 받는다 |
+| `tables/model_call.py` | `ModelCallRow` — 모델 호출 기록. 성공이면 종료 사유·토큰, 실패면 실패 종류가 있어야 한다는 제약을 DB 에도 건다(낱말 목록은 core 에서 만든다). 비용은 정밀도 없는 NUMERIC |
 | `tables/model_provider.py` | `ModelProviderRow` — 공급자 프로필. 주소, API 키 암호문(`api_key_enc`, 평문 없음), 기본 대기 시간, 켜짐 |
 | `tables/` | 테이블 정의(SQLAlchemy ORM 매핑 — 쿼리 매핑과 마이그레이션 생성의 기준, 실제 DDL 은 `migrations/`). `model_alias.py` 의 `ModelAliasRow` — 모델 논리 이름의 대응표. 검사 제약으로 `input_kinds` 를 text·image·file 로 막는다(core 의 `InputKind` 에서 만든다). 이 테이블을 core 의 계약에 맞추는 Repository 는 runtime 에 있다 |
 

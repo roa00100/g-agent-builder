@@ -77,6 +77,17 @@ cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; cd ..
 .venv\Scripts\python -m agent_builder_runtime model call nosuch "hi" --max-tokens 10; $LASTEXITCODE
 ```
 
+### 호출 기록 보기
+
+공급자에 보낸 호출은 성공이든 실패든 한 줄씩 Postgres(`model_call`)에 남는다. 위의 `nosuch` 처럼 보내기 전에 막힌 것은 남지 않는다. 보낸 문장과 받은 답은 남기지 않는다.
+
+```powershell
+.venv\Scripts\python -m agent_builder_runtime model calls --limit 20
+.venv\Scripts\python -m agent_builder_runtime model call-show <request_id>
+```
+
+`calls` 는 최근 것부터 한 줄씩 — 시각, request_id, 모델, 실제 모델, 결과(종료 사유 또는 `실패:종류`), 입력/출력 토큰, 비용, 걸린 시간. `call-show` 는 실제 공급사(`upstream_provider`)·실패 내용까지 전부 보인다. 기록에 실패해도 답은 그대로 받고, ERROR 로그 `model.call.record_failed` 에 빠진 줄의 숫자가 남는다.
+
 ### 5. 모델 부르기 — rest 모드
 
 ```powershell
@@ -89,7 +100,7 @@ http://127.0.0.1:8000/docs 에서 경로를 보고 시험할 수 있다. 다른 
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/model/call -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes('{"model":"fast","messages":[{"role":"user","content":"안녕"}],"params":{"max_output_tokens":20}}'))
 ```
 
-실패는 404(없는 모델)·409(꺼진 모델)·422(요청 모양·받지 않는 내용)·503(공급자 없음)·502(호출 실패, 본문에 kind·retryable)로 돌려준다. 인증이 아직 없어 이 PC 에서만 붙는다.
+기록은 `GET /model/calls?limit=20`·`GET /model/calls/{request_id}` 로 본다. 실패는 404(없는 모델)·409(꺼진 모델)·422(요청 모양·받지 않는 내용)·503(공급자 없음)·502(호출 실패, 본문에 kind·retryable)로 돌려준다. 인증이 아직 없어 이 PC 에서만 붙는다.
 
 ### 6. 로그 보기
 

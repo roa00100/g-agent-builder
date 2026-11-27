@@ -1,10 +1,17 @@
 from datetime import datetime
+from typing import get_args
 
 from sqlalchemy import CheckConstraint, DateTime, Text, func, true
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
+from agent_builder_core.contracts.model import InputKind
 from agent_builder_infra.orm import Base
+
+# 받는 조각 종류는 core 의 InputKind 한 곳에서 정의한다.
+# 여기서는 그것으로 제약을 만든다.
+# 종류를 바꾸면 이 제약이 달라지므로 새 마이그레이션도 같이 만든다.
+_INPUT_KINDS_SQL = ", ".join(f"'{kind}'" for kind in get_args(InputKind))
 
 
 class ModelAliasRow(Base):
@@ -12,11 +19,10 @@ class ModelAliasRow(Base):
 
     __tablename__ = "model_alias"
     __table_args__ = (
-        # 받는 조각은 하나 이상이고, 셋(text·image·file) 밖의 말은 받지 않는다.
-        # 이 셋은 모델 요청의 내용 조각 종류와 같다.
+        # 받는 조각은 하나 이상이고, core 의 InputKind 밖의 말은 받지 않는다.
         CheckConstraint(
             "cardinality(input_kinds) > 0"
-            " AND input_kinds <@ ARRAY['text', 'image', 'file']::text[]",
+            f" AND input_kinds <@ ARRAY[{_INPUT_KINDS_SQL}]::text[]",
             name="model_alias_input_kinds_valid",
         ),
     )

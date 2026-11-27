@@ -1,7 +1,7 @@
 # agent-builder-infra
 
-에이전트 빌더의 구현 — `agent-builder-core` 의 계약을 PostgreSQL·Redis·SeaweedFS(오브젝트 스토리지)·OpenRouter 로 채운다.
-infra 가 core 를 import 하고, 반대는 없다.
+에이전트 빌더의 기술 구성 — PostgreSQL·Redis·SeaweedFS(오브젝트 스토리지) 접속, 공통 서비스, 테이블 정의.
+core 의 정의(예: `InputKind`)는 가져다 쓴다. infra 의 값을 계약에 맞추는 일(Repository)과 조립은 runtime 이 한다.
 
 | 모듈 | 내용 |
 |---|---|
@@ -12,7 +12,7 @@ infra 가 core 를 import 하고, 반대는 없다.
 | `services/object_storage.py` | `ObjectStorageService` — 버킷 하나 안에서 키로 `put_bytes`·`get_bytes`·`head`·`exists`·`delete`·`list_keys`. 없는 키는 `None`, 그 밖의 실패는 예외. S3 API(boto3)로만 말해 SeaweedFS 를 다른 S3 호환 스토리지로 바꿔도 그대로다 |
 | `orm.py` | 테이블 모델의 부모 `Base` |
 | `crud.py` | ORM 모델 공통 `find_by_id`·`find_all`·`count`·`create`·`update`·`delete`. 세션은 인자로 받는다 |
-| `model_alias/` | 모델 논리 이름의 대응표. 테이블 `model_alias`(Postgres)가 기준이고 Redis 에 5분 캐싱한다. `ModelAliasService` 의 `resolve(name)` 은 없거나 꺼 둔 이름이면 오류를 낸다. 고치는 메서드(`upsert`·`set_enabled`·`delete`)는 커밋 뒤 그 이름의 캐시를 지운다 |
+| `tables/` | 테이블 정의(SQLAlchemy ORM 매핑 — 쿼리 매핑과 마이그레이션 생성의 기준, 실제 DDL 은 `migrations/`). `model_alias.py` 의 `ModelAliasRow` — 모델 논리 이름의 대응표. 검사 제약으로 `input_kinds` 를 text·image·file 로 막는다(core 의 `InputKind` 에서 만든다). 이 테이블을 core 의 계약에 맞추는 Repository 는 runtime 에 있다 |
 
 프로바이더와 서비스를 조립하는 `container.py` 는 runtime 에 있다. infra 의 테스트는 프로바이더를 직접 만들어 서비스에 넣는다.
 

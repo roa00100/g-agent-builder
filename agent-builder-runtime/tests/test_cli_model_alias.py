@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from agent_builder_runtime.__main__ import main
-from agent_builder_runtime.container import close_all, get_model_alias_service
+from agent_builder_runtime.container import close_all, get_model_catalog
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def name():
     """테스트마다 새 이름을 쓰고, 끝나면 지운다."""
     name = f"test-{uuid.uuid4()}"
     yield name
-    get_model_alias_service().delete(name)
+    get_model_catalog().delete(name)
     close_all()
 
 

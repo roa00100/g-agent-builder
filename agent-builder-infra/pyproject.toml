@@ -5,11 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-builder-infra"
 version = "0.1.0"
-description = "에이전트 빌더의 구현 — core 의 계약을 PostgreSQL·Redis·OpenRouter 로 채운다"
+description = "에이전트 빌더의 기술 구성 — PostgreSQL·Redis·오브젝트 스토리지 접속과 공통 서비스, 테이블 정의"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    # 같은 저장소의 core. 설치할 때 로컬 경로를 같이 넘긴다 (README 「준비」).
+    # 같은 저장소의 core. 계약의 정의(예: InputKind)를 같이 쓴다.
+    # 설치할 때 로컬 경로를 같이 넘긴다 (AGENTS.md 6절).
     "agent-builder-core",
     # 모델 공급자 호출. OpenRouter 는 OpenAI 호환 API 라서 주소만 바꿔 쓴다.
     # 하한은 OpenRouter 연결을 실제로 확인한 버전이다.

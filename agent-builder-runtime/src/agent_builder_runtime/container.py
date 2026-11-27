@@ -10,7 +10,6 @@ get_db().fetch_all("select ...")
 
 from functools import lru_cache
 
-from agent_builder_infra.model_alias.service import ModelAliasService
 from agent_builder_infra.providers.object_storage import ObjectStorageProvider
 from agent_builder_infra.providers.postgres import PostgresProvider
 from agent_builder_infra.providers.redis import RedisProvider
@@ -18,6 +17,7 @@ from agent_builder_infra.services.db import DbService
 from agent_builder_infra.services.object_storage import ObjectStorageService
 from agent_builder_infra.services.redis import RedisService
 from agent_builder_infra.settings import get_settings
+from agent_builder_runtime.repositories import ModelCatalogRepository
 
 
 @lru_cache
@@ -57,8 +57,9 @@ def get_object_storage() -> ObjectStorageService:
 
 
 @lru_cache
-def get_model_alias_service() -> ModelAliasService:
-    return ModelAliasService(get_db(), get_redis())
+def get_model_catalog() -> ModelCatalogRepository:
+    """core 의 ModelCatalog 를 채우는 구현."""
+    return ModelCatalogRepository(get_db(), get_redis())
 
 
 def close_all() -> None:
@@ -70,6 +71,6 @@ def close_all() -> None:
     for get_provider in providers:
         if get_provider.cache_info().currsize:
             get_provider().close()
-    services = (get_db, get_redis, get_object_storage, get_model_alias_service)
+    services = (get_db, get_redis, get_object_storage, get_model_catalog)
     for getter in (*providers, *services):
         getter.cache_clear()

@@ -13,13 +13,8 @@ infra 가 core 를 import 하고, 반대는 없다.
 | `orm.py` | 테이블 모델의 부모 `Base` |
 | `crud.py` | ORM 모델 공통 `find_by_id`·`find_all`·`count`·`create`·`update`·`delete`. 세션은 인자로 받는다 |
 | `model_alias/` | 모델 논리 이름의 대응표. 테이블 `model_alias`(Postgres)가 기준이고 Redis 에 5분 캐싱한다. `ModelAliasService` 의 `resolve(name)` 은 없거나 꺼 둔 이름이면 오류를 낸다. 고치는 메서드(`upsert`·`set_enabled`·`delete`)는 커밋 뒤 그 이름의 캐시를 지운다 |
-| `container.py` | `get_db()`, `get_redis()`, `get_object_storage()`, `get_model_alias_service()` — 프로바이더와 서비스를 한 번씩 만들어 준다. 끝낼 때 `close_all()` |
 
-```python
-from agent_builder_infra.container import get_db, get_redis
-
-rows = get_db().fetch_all("select ...")
-```
+프로바이더와 서비스를 조립하는 `container.py` 는 runtime 에 있다. infra 의 테스트는 프로바이더를 직접 만들어 서비스에 넣는다.
 
 ## 로컬 DB·Redis·오브젝트 스토리지
 
@@ -44,17 +39,7 @@ Redis 는 AOF 로 디스크에 써서 재시작해도 데이터가 남는다. Se
 
 ## 모델 대응표 고치기
 
-이 폴더에서 실행한다. 고치는 명령은 Postgres 에 쓰고 그 이름의 캐시를 지운다.
-
-```powershell
-..\.venv\Scripts\python -m agent_builder_infra.model_alias list
-..\.venv\Scripts\python -m agent_builder_infra.model_alias set fast --provider openrouter --model <공급자 쪽 이름> --inputs text,image
-..\.venv\Scripts\python -m agent_builder_infra.model_alias show fast
-..\.venv\Scripts\python -m agent_builder_infra.model_alias disable fast
-..\.venv\Scripts\python -m agent_builder_infra.model_alias delete fast
-```
-
-`--inputs` 는 그 모델이 받는 조각(text·image·file)이다. 기본은 `text` 다. 종료 코드는 0 성공, 1 없는 이름, 2 입력값 오류.
+명령줄 진입점은 `agent-builder-runtime` 에 있다. 그쪽 README 를 본다.
 
 ## 컨테이너
 
@@ -64,4 +49,4 @@ Redis 는 AOF 로 디스크에 써서 재시작해도 데이터가 남는다. Se
 docker compose run --rm --build app
 ```
 
-실행 진입점이 아직 없어 컨테이너의 기본 명령은 infra 테스트다.
+컨테이너의 기본 명령은 infra·runtime 테스트다.

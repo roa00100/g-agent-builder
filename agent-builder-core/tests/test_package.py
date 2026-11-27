@@ -20,6 +20,7 @@ FORBIDDEN = [
     "alembic",
     "boto3",
     "agent_builder_infra",
+    "agent_builder_runtime",
 ]
 
 

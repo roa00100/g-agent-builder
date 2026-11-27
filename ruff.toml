@@ -1,4 +1,4 @@
-# 저장소 전체(core·infra)가 같이 쓰는 ruff 설정. 저장소 루트에서 `ruff check .` 로 돌린다.
+# 저장소 전체(core·infra·runtime)가 같이 쓰는 ruff 설정. 저장소 루트에서 `ruff check .` 로 돌린다.
 target-version = "py313"
 # import 정렬에서 우리 패키지를 「우리 것」으로 알아보게 한다.
 src = [
@@ -6,6 +6,8 @@ src = [
     "agent-builder-core/tests",
     "agent-builder-infra/src",
     "agent-builder-infra/tests",
+    "agent-builder-runtime/src",
+    "agent-builder-runtime/tests",
 ]
 
 [lint]

@@ -22,9 +22,12 @@ RUN python -m venv "$VIRTUAL_ENV"
 
 COPY --chown=app:app agent-builder-core ./agent-builder-core
 COPY --chown=app:app agent-builder-infra ./agent-builder-infra
-RUN pip install -e "./agent-builder-core[dev]" -e "./agent-builder-infra[dev]"
+COPY --chown=app:app agent-builder-runtime ./agent-builder-runtime
+RUN pip install -e "./agent-builder-core[dev]" -e "./agent-builder-infra[dev]" \
+    -e "./agent-builder-runtime[dev]"
 
-# 아직 실행 진입점이 없다. 진입점이 생기면 이 두 줄을 바꾼다.
-# DB·Redis 가 있어야 하는 infra 테스트를 돈다. core 테스트는 DB 없이 돌므로 PC·CI 에서 돈다.
-WORKDIR /app/agent-builder-infra
-CMD ["python", "-m", "pytest"]
+# 기본 명령은 DB·Redis·스토리지가 있어야 하는 infra·runtime 테스트다.
+# core 테스트는 DB 없이 돌므로 PC·CI 에서 돈다.
+# 명령줄을 돌리려면: docker compose run --rm app python -m agent_builder_runtime --help
+WORKDIR /app
+CMD ["sh", "-c", "cd agent-builder-infra && python -m pytest && cd ../agent-builder-runtime && python -m pytest"]

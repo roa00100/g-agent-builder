@@ -2,7 +2,7 @@
 
 먼저 `docker compose up -d --wait` 로 띄운다.
 
-container.py 를 거치지 않고 프로바이더를 직접 만들어 서비스에 넣는다.
+프로바이더를 직접 만들어 서비스에 넣는다(조립하는 container 는 runtime 에 있다).
 """
 
 import pytest

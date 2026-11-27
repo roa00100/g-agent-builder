@@ -15,7 +15,6 @@ from agent_builder_infra.model_alias import (
     ModelAliasService,
     UnknownModelAlias,
 )
-from agent_builder_infra.model_alias.__main__ import main
 from agent_builder_infra.services import redis_key
 
 
@@ -136,36 +135,3 @@ def test_table_rejects_unknown_kind(db, name):
             " values (:n, 'p', 'm', array['video'])",
             {"n": name},
         )
-
-
-def test_cli_set_show_disable_delete(name, capsys):
-    assert (
-        main(
-            [
-                "set",
-                name,
-                "--provider",
-                "openrouter",
-                "--model",
-                "m",
-                "--inputs",
-                "text,file",
-            ]
-        )
-        == 0
-    )
-    assert main(["show", name]) == 0
-    assert '"provider_model": "m"' in capsys.readouterr().out
-
-    assert main(["disable", name]) == 0
-    assert "꺼짐" in capsys.readouterr().out
-
-    assert main(["delete", name]) == 0
-    assert main(["show", name]) == 1
-    assert "대응표에 없는" in capsys.readouterr().err
-
-
-def test_cli_rejects_bad_inputs(name, capsys):
-    code = main(["set", name, "--provider", "p", "--model", "m", "--inputs", "video"])
-
-    assert code == 2

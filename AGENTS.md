@@ -68,7 +68,7 @@
 | 결정 | Redis 를 더해 체크포인트 같은 상태를 저장한다 (2026-11-27 사용자 지시) |
 | 제안 — 설정됨 | Redis 8 을 AOF(`appendfsync always`)로 띄워 재시작해도 남게 한다. 클라이언트는 redis-py |
 | 결정 | Postgres 가 기준이다. 단계 결과·채택 여부·기록처럼 남아야 하는 것은 Postgres 에 둔다. Redis 에는 보조 고리가 도는 동안의 중간 상태, 잠금·취소 신호처럼 짧게 사는 것만 둔다. Redis 가 비어도 Postgres 만으로 마지막 확정 단계부터 이어 갈 수 있어야 한다 (2026-11-27 사용자가 고름) |
-| 결정 | 접속 프로바이더(`providers/`)와 공통 서비스(`services/`)를 나눈다. 서비스는 프로바이더를 생성자로 받고, 조립은 `container.py` 한 곳에서 한다. `crud.py` 는 세션만 받는 함수로 둔다. 모두 infra 에 있다 (2026-11-27 사용자가 고름) |
+| 결정 | 접속 프로바이더(`providers/`)와 공통 서비스(`services/`)를 나눈다. 서비스는 프로바이더를 생성자로 받고, 조립은 `container.py` 한 곳에서 한다. `crud.py` 는 세션만 받는 함수로 둔다 (2026-11-27 사용자가 고름). 프로바이더·서비스·crud 는 infra 에, 조립하는 `container.py` 는 runtime 에 있다 (2026-11-27 사용자가 고름 — 처음에는 infra 에 두었음) |
 | 결정 | core 는 공통 계약 구조를 두는 커널 레벨이다. 특정 기술을 모르고, 의존성은 Pydantic 뿐이다. 구체 구현은 `agent-builder-infra` 에 둔다. infra 가 core 를 import 하고, 반대는 없다 (2026-11-27 사용자가 고름) |
 | 제안 — 사용자 확인 전 | 이름은 core 를 유지한다(kernel 로 바꾸지 않음) |
 | 미정 | core 의 계약(`contracts/`) — 짧게 사는 값 저장소, 실행 상태 저장소, 모델 공급자 등. 사용자가 쓰는 구조 코드 |
@@ -83,7 +83,8 @@
 | 제안 — 사용자 확인 전 | infra 는 S3 API 로만 말한다(클라이언트 boto3). core 는 스토리지를 모르고, 파일은 우리 쪽 ID(`file_id`)로 가리킨다. 파일 정보는 Postgres, 내용은 SeaweedFS |
 | 결정 | 모델 논리 이름의 대응표는 Postgres 에 두고 Redis 에 캐싱한다 (2026-11-27 사용자 지시) |
 | 결정 | 대응표는 infra 의 함수로 넣고 고친다. 고칠 때 캐시도 같이 지운다 (2026-11-27 사용자가 고름). 지금 있는 진입점은 명령줄 하나다 — 호출 방법은 REST 또는 CLI 라는 1절에 따라 명령줄은 함수 위의 얇은 진입점일 뿐이다 |
-| 미정 | REST 진입 계층의 위치(패키지)와 쓸 웹 프레임워크 — 그 계층을 만들 때 고른다 |
+| 결정 | 패키지는 셋이다. core 는 계약, infra 는 runtime 이 쓸 infra 구성, runtime(`agent_builder_runtime`)은 실행 진입점(CLI·REST)이다. 명령줄 진입점은 runtime 에 둔다 (2026-11-27 사용자 지시) |
+| 미정 | REST 진입 계층에 쓸 웹 프레임워크 — 그 계층을 만들 때 고른다. 자리는 runtime 이다 |
 | 진행 단계 | W0 이전 — infra 에 공통 기반(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD — 사용자 지시로 에이전트가 작성)이 있고, core 에는 빈 `contracts/` 와 빈 개념 패키지 셋만 있다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
 
 ## 6. 저장소 구성
@@ -92,13 +93,13 @@
 agent-handoff.md        과거 다른 프로젝트의 경험 (교훈·설계 이론, 참고용)
 AGENTS.md               이 문서
 .gitignore · .gitattributes · .editorconfig
-.github/workflows/ci.yml    push·PR 때 ruff, core 테스트, 마이그레이션, infra 테스트
+.github/workflows/ci.yml    push·PR 때 ruff, core 테스트, 마이그레이션, infra·runtime 테스트
 ruff.toml               저장소 전체의 ruff 설정
 .python-version         Python 버전 (CI 가 읽는다)
 docker-compose.yml      로컬 PostgreSQL · Redis · SeaweedFS(오브젝트 스토리지), 컨테이너 테스트용 app
 .env.example            환경변수 예시 — 복사해서 루트에 .env 를 만든다
 .dockerignore           도커 빌드 맥락은 저장소 루트다
-.venv/                  가상환경 하나에 core 와 infra 를 같이 설치한다
+.venv/                  가상환경 하나에 core·infra·runtime 을 같이 설치한다
 agent-builder-core/     계약 — 특정 기술을 모른다. DB 없이 테스트가 돈다
   src/agent_builder_core/
   tests/
@@ -107,6 +108,9 @@ agent-builder-infra/    구현 — core 의 계약을 Postgres·Redis·SeaweedFS
   alembic.ini · migrations/ 스키마 변경 (마이그레이션 1개: model_alias)
   src/agent_builder_infra/
   tests/                    실제 PostgreSQL·Redis·SeaweedFS 에 붙는다
+agent-builder-runtime/  실행 진입점 — CLI(지금)·REST(나중). core 의 계약과 infra 의 구성을 묶어 돌린다
+  src/agent_builder_runtime/
+  tests/
 ```
 
 패키지 배치 규칙 (결정).
@@ -129,27 +133,34 @@ agent_builder_infra/                    구현
     object_storage.py       ObjectStorageService: 키로 바이트 넣기·꺼내기·정보·목록·삭제 (S3 API)
   orm.py                    테이블 모델의 부모 Base
   crud.py                   ORM 공통 CRUD — 세션만 받는다
-  container.py              조립 — 프로바이더·서비스를 만들어 core 의 서비스에 넣는다
-  model_alias/              모델 논리 이름 대응표 — models·schemas·service, 명령줄(__main__)
+  model_alias/              모델 논리 이름 대응표 — models·schemas·service
   <개념>/models.py          SQLAlchemy 테이블 모델 (Base 상속) — 테이블이 생기면
+
+agent_builder_runtime/                  실행 진입점
+  container.py              조립 — infra 의 프로바이더·서비스를 한 번씩 만든다
+  __main__.py               명령줄 — python -m agent_builder_runtime <묶음> <명령>
+  cli/<묶음>.py             묶음마다 register()·run(). 서비스를 부르기만 한다
+  (나중) rest/              REST 진입점 — 웹 프레임워크는 여기에만
 ```
 
-- core 는 infra 와 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를 import 하지 않는다. core 의 `test_package.py` 가 이것을 확인한다.
+- 의존 방향은 runtime → infra → core 한쪽뿐이다. core 는 infra·runtime 과 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를, infra 는 runtime 을 import 하지 않는다. 각 패키지의 `test_package.py` 가 이것을 확인한다.
 - 테이블 모델과 Pydantic 모델을 한 클래스로 합치지 않는다.
 - 기능은 서비스 함수에 둔다. CLI·REST 는 그 함수를 부르기만 하는 얇은 진입점이고, 웹 프레임워크는 REST 진입 계층에만 둔다.
-- 프로바이더는 `container.py` 만 만든다. 다른 모듈은 container 에서 받거나 생성자로 받는다.
+- 프로바이더는 runtime 의 `container.py` 만 만든다. 진입점은 container 에서 받고, 서비스는 생성자로 받는다.
 - 새 테이블 모델 모듈은 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 
 설치와 확인. 저장소 루트에서 시작한다.
 
 ```powershell
 py -3.13 -m venv .venv
-.venv\Scripts\python -m pip install -e ".\agent-builder-core[dev]" -e ".\agent-builder-infra[dev]"
+.venv\Scripts\python -m pip install -e ".\agent-builder-core[dev]" -e ".\agent-builder-infra[dev]" -e ".\agent-builder-runtime[dev]"
 Copy-Item .env.example .env
 docker compose up -d --wait
 .venv\Scripts\ruff check .
 .venv\Scripts\ruff format --check .
 cd agent-builder-core; ..\.venv\Scripts\python -m pytest; cd ..
 cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; ..\.venv\Scripts\python -m pytest; cd ..
+cd agent-builder-runtime; ..\.venv\Scripts\python -m pytest; cd ..
+.venv\Scripts\python -m agent_builder_runtime --help
 docker compose run --rm --build app
 ```

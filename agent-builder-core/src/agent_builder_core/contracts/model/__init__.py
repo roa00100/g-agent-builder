@@ -1,19 +1,75 @@
-"""모델에 관한 계약 — 내용 종류, 모델 대응표."""
+"""모델에 관한 계약 — 내용(조각·출처), 요청, 응답, 모델 대응표."""
 
 from agent_builder_core.contracts.model.catalog import (
     DisabledModel,
     ModelCatalog,
     ModelSpec,
     UnknownModel,
+    UnsupportedInput,
+    check_inputs,
     resolve_model,
 )
-from agent_builder_core.contracts.model.content import InputKind
+from agent_builder_core.contracts.model.content import (
+    ContentPart,
+    FilePart,
+    ImagePart,
+    InlineSource,
+    InputKind,
+    Source,
+    StoredSource,
+    TextPart,
+    UrlSource,
+)
+from agent_builder_core.contracts.model.request import (
+    GenerationParams,
+    Message,
+    ModelRequest,
+    OutputSpec,
+    Role,
+    ToolCall,
+    ToolChoice,
+    ToolSpec,
+    TraceContext,
+)
+from agent_builder_core.contracts.model.response import (
+    FailureKind,
+    FinishReason,
+    ModelCallFailed,
+    ModelResponse,
+    Usage,
+    parse_output,
+)
 
 __all__ = [
+    "parse_output",
+    "Usage",
+    "ModelResponse",
+    "ModelCallFailed",
+    "FinishReason",
+    "FailureKind",
+    "ContentPart",
     "DisabledModel",
+    "FilePart",
+    "GenerationParams",
+    "ImagePart",
+    "InlineSource",
     "InputKind",
+    "Message",
     "ModelCatalog",
+    "ModelRequest",
     "ModelSpec",
+    "OutputSpec",
+    "Role",
+    "Source",
+    "StoredSource",
+    "TextPart",
+    "ToolCall",
+    "ToolChoice",
+    "ToolSpec",
+    "TraceContext",
     "UnknownModel",
+    "UnsupportedInput",
+    "UrlSource",
+    "check_inputs",
     "resolve_model",
 ]

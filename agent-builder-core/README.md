@@ -7,7 +7,8 @@ core 는 특정 기술(DB·Redis·모델 공급자)을 모른다. 의존성은 P
 
 | 모듈 | 내용 |
 |---|---|
-| `contracts/model/` | 모델 계약. `InputKind`(text·image·file), 모델 대응표 `ModelSpec`, 찾기·고치기 계약 `ModelCatalog`, 오류 `UnknownModel`·`DisabledModel`, 규칙 `resolve_model`(없거나 꺼진 이름은 오류). 구현은 runtime 의 `ModelCatalogRepository` |
+| `contracts/envelope.py` | `Envelope` — 모든 계약 모양의 부모. 모르는 필드 거부, 만든 뒤 불변 |
+| `contracts/model/` | 모델 계약. 모델 요청 `ModelRequest`(메시지·생성 옵션·출력 모양·도구·추적, 버전 1), 내용 조각 `TextPart`·`ImagePart`·`FilePart`와 출처 `InlineSource`·`UrlSource`·`StoredSource`, 요청이 모델에 맞는지 보는 `check_inputs`. 모델 응답 `ModelResponse`(본문은 요청의 `Message`, 종료 사유 다섯 가지, 사용량·비용, 걸린 시간), 실패 예외 `ModelCallFailed`(종류·`retryable`), 원하는 모양으로 읽는 `parse_output`. 그리고 `InputKind`(text·image·file), 모델 대응표 `ModelSpec`, 찾기·고치기 계약 `ModelCatalog`, 오류 `UnknownModel`·`DisabledModel`, 규칙 `resolve_model`(없거나 꺼진 이름은 오류). 구현은 runtime 의 `ModelCatalogRepository` |
 | `workflow/` | workflow 정의 — 단계의 순서, 단계마다 입력·출력, 누가 하는가. 비어 있음 |
 | `run/` | 실행 상태 — 지금 어느 단계인가, 단계별 결과, 멈췄다 이어 가기. 비어 있음 |
 | `assist/` | AI 보조 단계 — 보조 프로필에 따라 제안을 만든다. 비어 있음 |

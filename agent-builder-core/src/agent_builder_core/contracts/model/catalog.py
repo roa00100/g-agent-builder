@@ -6,15 +6,15 @@
 
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from agent_builder_core.contracts.envelope import Envelope
 from agent_builder_core.contracts.model.content import InputKind
+from agent_builder_core.contracts.model.request import ModelRequest
 
 
-class ModelSpec(BaseModel):
+class ModelSpec(Envelope):
     """논리 이름 하나가 약속하는 것."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
     # 논리 이름 (예: fast, smart). 모델 요청의 model 에 적는 값이다.
     name: str = Field(min_length=1)
@@ -34,6 +34,10 @@ class UnknownModel(LookupError):
 
 class DisabledModel(LookupError):
     """대응표에 있지만 꺼 둔 논리 이름."""
+
+
+class UnsupportedInput(ValueError):
+    """모델이 받지 않는 내용 종류가 요청에 들어 있다. 몰래 빼지 않는다."""
 
 
 @runtime_checkable
@@ -69,3 +73,18 @@ def resolve_model(catalog: ModelCatalog, name: str) -> ModelSpec:
     if not spec.enabled:
         raise DisabledModel(f"꺼 둔 모델 이름: {name}")
     return spec
+
+
+def check_inputs(request: ModelRequest, spec: ModelSpec) -> None:
+    """요청이 그 모델에 맞는지 본다.
+
+    요청의 model 과 명세의 이름이 다르면 ValueError,
+    모델이 받지 않는 내용 종류가 있으면 UnsupportedInput.
+    """
+    if request.model != spec.name:
+        raise ValueError(f"요청의 모델({request.model})과 명세({spec.name})가 다르다")
+    unsupported = request.input_kinds() - set(spec.input_kinds)
+    if unsupported:
+        raise UnsupportedInput(
+            f"모델 {spec.name} 이 받지 않는 내용: {sorted(unsupported)}"
+        )

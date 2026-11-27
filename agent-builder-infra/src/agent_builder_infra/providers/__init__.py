@@ -4,7 +4,17 @@
 """
 
 from agent_builder_infra.providers.object_storage import ObjectStorageProvider
+from agent_builder_infra.providers.openrouter import (
+    OpenRouterCallError,
+    OpenRouterProvider,
+)
 from agent_builder_infra.providers.postgres import PostgresProvider
 from agent_builder_infra.providers.redis import RedisProvider
 
-__all__ = ["ObjectStorageProvider", "PostgresProvider", "RedisProvider"]
+__all__ = [
+    "ObjectStorageProvider",
+    "OpenRouterCallError",
+    "OpenRouterProvider",
+    "PostgresProvider",
+    "RedisProvider",
+]

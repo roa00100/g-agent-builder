@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import get_args
 
-from sqlalchemy import CheckConstraint, DateTime, Text, func, true
+from sqlalchemy import CheckConstraint, DateTime, Float, Text, func, true
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,10 @@ class ModelAliasRow(Base):
             f" AND input_kinds <@ ARRAY[{_INPUT_KINDS_SQL}]::text[]",
             name="model_alias_input_kinds_valid",
         ),
+        CheckConstraint(
+            "timeout_seconds IS NULL OR timeout_seconds > 0",
+            name="model_alias_timeout_positive",
+        ),
     )
 
     # 논리 이름 (예: fast, smart). 모델 요청의 model 에 적는 값이다.
@@ -35,6 +39,8 @@ class ModelAliasRow(Base):
     provider_model: Mapped[str] = mapped_column(Text)
     # 이 모델이 받는 내용 조각 종류.
     input_kinds: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    # 이 모델만 다르게 기다릴 시간(초). 비우면 공급자 프로필의 기본값을 쓴다.
+    timeout_seconds: Mapped[float | None] = mapped_column(Float)
     # 끄면 이 이름으로 오는 요청을 거부한다. 지우지 않고 끌 수 있게 둔다.
     enabled: Mapped[bool] = mapped_column(server_default=true())
     updated_at: Mapped[datetime] = mapped_column(

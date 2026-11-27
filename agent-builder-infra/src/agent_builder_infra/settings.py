@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         # .env 에 앱이 모르는 키가 있어도 오류로 보지 않고 넘긴다.
         extra="ignore",
-        # `OPENROUTER_API_KEY=` 처럼 비워 둔 값은 빈 문자열이 아니라 None 으로 읽는다.
+        # `REDIS_PASSWORD=` 처럼 비워 둔 값은 빈 문자열이 아니라 None 으로 읽는다.
         env_parse_none_str="",
     )
 
@@ -63,9 +63,11 @@ class Settings(BaseSettings):
     storage_secret_key: SecretStr
     storage_bucket: str
 
-    # 모델을 부르지 않는 명령(마이그레이션 등)은 키 없이 돌아야 하므로 없어도 된다.
-    # SecretStr 이라 로그나 출력에 값이 찍히지 않는다. 꺼낼 때는 .get_secret_value()
-    openrouter_api_key: SecretStr | None = None
+    # 비밀 값(공급자 API 키 등)을 DB·캐시에 암호문으로 두는 마스터 키(Fernet).
+    # 공급자 키·주소·대기 시간은 환경변수가 아니라 공급자 프로필(model_provider)에 있다.
+    # 비밀을 다루지 않는 명령(마이그레이션 등)은 이 키 없이 돌아야 하므로 없어도 된다.
+    # SecretStr 이라 로그나 출력에 값이 찍히지 않는다.
+    secret_encryption_key: SecretStr | None = None
 
     @property
     def database_url(self) -> URL:

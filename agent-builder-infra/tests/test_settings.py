@@ -101,14 +101,22 @@ def test_storage_endpoint_and_hidden_secret(env):
     assert "hidden-secret" not in repr(settings)
 
 
-def test_openrouter_key_is_optional_and_hidden(env):
-    env.setenv("OPENROUTER_API_KEY", "")
-    assert Settings(_env_file=None).openrouter_api_key is None
+def test_secret_encryption_key_is_optional_and_hidden(env):
+    env.setenv("SECRET_ENCRYPTION_KEY", "")
+    assert Settings(_env_file=None).secret_encryption_key is None
 
-    env.setenv("OPENROUTER_API_KEY", "test-key")
-    key = Settings(_env_file=None).openrouter_api_key
-    assert key.get_secret_value() == "test-key"
-    assert "test-key" not in repr(key)
+    env.setenv("SECRET_ENCRYPTION_KEY", "master-key")
+    key = Settings(_env_file=None).secret_encryption_key
+    assert key.get_secret_value() == "master-key"
+    assert "master-key" not in repr(key)
+
+
+def test_provider_settings_are_not_read_from_environment(env):
+    # 공급자 키·대기 시간은 공급자 프로필(DB)에 있다. 설정에 없어야 한다.
+    fields = Settings.model_fields
+
+    assert "openrouter_api_key" not in fields
+    assert "openrouter_timeout_seconds" not in fields
 
 
 @pytest.mark.parametrize("missing", list(REQUIRED))

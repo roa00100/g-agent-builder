@@ -4,10 +4,13 @@
 실제 호출은 대응표에 모델을 등록한 뒤 손으로 확인한다.
 """
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
 from agent_builder_core.contracts.model import (
+    CallRecord,
     DisabledModel,
     ModelCallFailed,
     ModelRequest,
@@ -18,7 +21,7 @@ from agent_builder_core.contracts.model import (
 )
 from agent_builder_runtime.__main__ import main
 from agent_builder_runtime.cli import model as cli_model
-from agent_builder_runtime.container import get_model_gateway
+from agent_builder_runtime.container import get_call_log, get_model_gateway
 from agent_builder_runtime.rest import create_app
 
 
@@ -174,3 +177,100 @@ def test_rest_rejects_bad_request_shape():
     with rest(FakeGateway()) as client:
         bad = {**REQUEST, "params": {}}
         assert client.post("/model/call", json=bad).status_code == 422
+
+
+# --- 호출 기록 보기 ---
+
+RECORD = CallRecord(
+    request_id="r-1",
+    model="fast",
+    provider="openrouter",
+    provider_model="vendor/model-a",
+    status="ok",
+    finish_reason="stop",
+    input_tokens=5,
+    output_tokens=2,
+    cost="0.0001",
+    latency_ms=321,
+    started_at=datetime(2026, 11, 27, 12, 0, tzinfo=UTC),
+)
+FAILED_RECORD = RECORD.model_copy(
+    update={
+        "request_id": "r-2",
+        "status": "failed",
+        "finish_reason": None,
+        "input_tokens": None,
+        "output_tokens": None,
+        "cost": None,
+        "failure_kind": "timeout",
+    }
+)
+
+
+class FakeLog:
+    def __init__(self, *records: CallRecord) -> None:
+        self.records = list(records)
+        self.limits: list[int] = []
+
+    def record(self, record: CallRecord) -> None:
+        self.records.append(record)
+
+    def get(self, request_id: str) -> CallRecord | None:
+        return next((r for r in self.records if r.request_id == request_id), None)
+
+    def list(self, limit: int) -> list[CallRecord]:
+        self.limits.append(limit)
+        return self.records[:limit]
+
+
+@pytest.fixture
+def use_log(monkeypatch):
+    def install(log: FakeLog) -> FakeLog:
+        monkeypatch.setattr(cli_model, "get_call_log", lambda: log)
+        return log
+
+    return install
+
+
+def test_cli_calls_prints_one_line_each(use_log, capsys):
+    log = use_log(FakeLog(RECORD, FAILED_RECORD))
+
+    assert main(["model", "calls", "--limit", "5"]) == 0
+
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert log.limits == [5]
+    assert len(lines) == 2
+    assert "r-1" in lines[0] and "5/2" in lines[0] and "0.0001" in lines[0]
+    assert "실패:timeout" in lines[1]
+
+
+def test_cli_calls_rejects_bad_limit(use_log):
+    use_log(FakeLog())
+    assert main(["model", "calls", "--limit", "0"]) == 2
+
+
+def test_cli_call_show(use_log, capsys):
+    use_log(FakeLog(RECORD))
+
+    assert main(["model", "call-show", "r-1"]) == 0
+    assert '"request_id": "r-1"' in capsys.readouterr().out
+    assert main(["model", "call-show", "nope"]) == 1
+
+
+def test_rest_calls_and_one_call():
+    app = create_app()
+    log = FakeLog(RECORD, FAILED_RECORD)
+    app.dependency_overrides[get_call_log] = lambda: log
+
+    with TestClient(app) as client:
+        listed = client.get("/model/calls", params={"limit": 1})
+        one = client.get("/model/calls/r-2")
+        missing = client.get("/model/calls/nope")
+        bad = client.get("/model/calls", params={"limit": 0})
+
+    assert listed.status_code == 200
+    assert [item["request_id"] for item in listed.json()] == ["r-1"]
+    assert listed.json()[0]["cost"] == "0.0001"
+    assert one.json()["failure_kind"] == "timeout"
+    assert missing.status_code == 404
+    assert bad.status_code == 422

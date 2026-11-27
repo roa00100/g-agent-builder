@@ -284,6 +284,14 @@ def test_response_mapping():
     assert response.usage.output_tokens == 3
     assert response.usage.cost == Decimal("0.000012")
     assert response.latency_ms >= 0
+    # 본문에 provider 가 없으면 모른다.
+    assert response.upstream_provider is None
+
+
+def test_upstream_provider_comes_from_body():
+    response = run(request(), FakeConnection(body(provider="OpenAI")))
+
+    assert response.upstream_provider == "OpenAI"
 
 
 def test_tool_call_response():

@@ -10,7 +10,7 @@ get_db().fetch_all("select ...")
 
 from functools import lru_cache
 
-from agent_builder_core.contracts.model import ModelCatalog
+from agent_builder_core.contracts.model import CallLog, ModelCatalog
 from agent_builder_core.model import ModelGateway
 from agent_builder_infra.clients.openrouter import OpenRouterClient
 from agent_builder_infra.observability import traced
@@ -26,8 +26,9 @@ from agent_builder_runtime.model_adapters import (
     OpenRouterAdapter,
     ProviderConnections,
 )
-from agent_builder_runtime.observability import trace_gateway
+from agent_builder_runtime.observability import report_record_error, trace_gateway
 from agent_builder_runtime.repositories import (
+    CallLogRepository,
     ModelCatalogRepository,
     ProviderProfileRepository,
 )
@@ -80,6 +81,14 @@ def get_model_catalog() -> ModelCatalog:
 
 
 @lru_cache
+def get_call_log() -> CallLog:
+    """core 의 CallLog 를 채우는 구현 — 호출 기록. 메서드마다 span 을 연다."""
+    return traced(
+        CallLogRepository(get_db()), "CallLogRepository", ("record", "get", "list")
+    )
+
+
+@lru_cache
 def get_cipher() -> FernetCipher:
     """비밀 값 암호화. 마스터 키(SECRET_ENCRYPTION_KEY)가 있어야 한다."""
     key = get_settings().secret_encryption_key
@@ -125,7 +134,12 @@ def get_model_gateway() -> ModelGateway:
         "OpenRouterAdapter",
         ("complete",),
     )
-    gateway = ModelGateway(get_model_catalog(), {openrouter.name: openrouter})
+    gateway = ModelGateway(
+        get_model_catalog(),
+        {openrouter.name: openrouter},
+        get_call_log(),
+        on_record_error=report_record_error,
+    )
     return trace_gateway(gateway)
 
 
@@ -150,6 +164,7 @@ def close_all() -> None:
         get_redis,
         get_object_storage,
         get_model_catalog,
+        get_call_log,
         get_cipher,
         get_provider_profiles,
         get_provider_connections,

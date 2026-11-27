@@ -5,6 +5,7 @@ core 에는 추적 코드가 없다. 여기서 바깥을 감싸 어떤 클래스
 """
 
 from agent_builder_core.contracts.model import (
+    CallRecord,
     DisabledModel,
     ModelCallFailed,
     ModelRequest,
@@ -46,6 +47,19 @@ def setup_observability() -> None:
     configure_logging(settings.log_level, settings.log_format)
     configure_tracing(settings.otel_service_name, settings.otel_exporter_otlp_endpoint)
     _ready = True
+
+
+def report_record_error(record: CallRecord, error: Exception) -> None:
+    """Gateway 가 기록에 실패했을 때 부른다. 호출은 살리고, 빠진 기록을 ERROR 로 남긴다.
+
+    빠진 한 줄을 나중에 손으로 채울 수 있게 기록의 숫자를 함께 남긴다.
+    """
+    log.error(
+        "model.call.record_failed",
+        error=type(error).__name__,
+        detail=str(error),
+        record=record.model_dump(mode="json"),
+    )
 
 
 def trace_gateway(gateway: ModelGateway) -> ModelGateway:

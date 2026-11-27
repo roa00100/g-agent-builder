@@ -80,6 +80,8 @@ def to_response(
             "cost": None if cost is None else Decimal(str(cost)),
         },
         latency_ms=latency_ms,
+        # OpenRouter 가 실제로 넘긴 곳 (예: OpenAI). 본문 맨 위의 provider 에 온다.
+        upstream_provider=body.get("provider") or None,
     )
 
 

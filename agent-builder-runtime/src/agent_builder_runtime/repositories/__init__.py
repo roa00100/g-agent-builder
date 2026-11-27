@@ -3,6 +3,7 @@
 infra 의 값을 꺼내 계약의 모양으로 바꾼다. DB 기술(SQLAlchemy 등)은 직접 쓰지 않는다.
 """
 
+from agent_builder_runtime.repositories.call_log import CallLogRepository
 from agent_builder_runtime.repositories.model_catalog import ModelCatalogRepository
 from agent_builder_runtime.repositories.provider_profile import (
     MissingApiKey,
@@ -11,6 +12,7 @@ from agent_builder_runtime.repositories.provider_profile import (
 )
 
 __all__ = [
+    "CallLogRepository",
     "MissingApiKey",
     "ModelCatalogRepository",
     "ProviderProfile",

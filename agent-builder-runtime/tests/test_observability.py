@@ -71,6 +71,21 @@ class FakeProvider:
         )
 
 
+class NoLog:
+    def record(self, record):
+        pass
+
+    def get(self, request_id):
+        return None
+
+    def list(self, limit):
+        return []
+
+
+def make_gateway(catalog, providers) -> ModelGateway:
+    return ModelGateway(catalog, providers, NoLog(), lambda record, error: None)
+
+
 def request(text="보낼 말"):
     return ModelRequest(
         model="fast",
@@ -85,7 +100,7 @@ def lines(err: str) -> list[dict]:
 
 def test_call_is_one_span_with_numbers_and_one_info_line(capsys):
     configure_logging("INFO", "json")
-    gateway = trace_gateway(ModelGateway(OneModel(), {"fake": FakeProvider()}))
+    gateway = trace_gateway(make_gateway(OneModel(), {"fake": FakeProvider()}))
 
     sent = request()
     gateway.complete(sent)
@@ -110,7 +125,7 @@ def test_call_is_one_span_with_numbers_and_one_info_line(capsys):
 
 def test_trace_level_logs_request_and_response(capsys):
     configure_logging("TRACE", "json")
-    gateway = trace_gateway(ModelGateway(OneModel(), {"fake": FakeProvider()}))
+    gateway = trace_gateway(make_gateway(OneModel(), {"fake": FakeProvider()}))
 
     gateway.complete(request("비밀 아닌 문장"))
 
@@ -122,7 +137,7 @@ def test_trace_level_logs_request_and_response(capsys):
 def test_failure_is_warning_and_span_error(capsys):
     configure_logging("INFO", "json")
     error = ModelCallFailed("rate_limited", "req", "잠시 뒤")
-    gateway = trace_gateway(ModelGateway(OneModel(), {"fake": FakeProvider(error)}))
+    gateway = trace_gateway(make_gateway(OneModel(), {"fake": FakeProvider(error)}))
 
     with pytest.raises(ModelCallFailed):
         gateway.complete(request())
@@ -151,7 +166,7 @@ def test_rest_request_is_root_span_with_gateway_inside():
     from agent_builder_runtime.rest import create_app
 
     app = create_app()
-    gateway = trace_gateway(ModelGateway(OneModel(), {"fake": FakeProvider()}))
+    gateway = trace_gateway(make_gateway(OneModel(), {"fake": FakeProvider()}))
     app.dependency_overrides[get_model_gateway] = lambda: gateway
     body = {
         "model": "fast",
@@ -184,10 +199,10 @@ class WrongAnswer(FakeProvider):
     ("gateway", "event", "level"),
     [
         # 보내기 전에 막힘 — 부른 쪽의 문제.
-        (ModelGateway(NoModels(), {}), "model.call.rejected", "warning"),
+        (make_gateway(NoModels(), {}), "model.call.rejected", "warning"),
         # 보낸 뒤 응답이 요청과 맞지 않음 — 구현의 결함.
         (
-            ModelGateway(OneModel(), {"fake": WrongAnswer()}),
+            make_gateway(OneModel(), {"fake": WrongAnswer()}),
             "model.call.error",
             "error",
         ),
@@ -203,3 +218,32 @@ def test_rejected_before_sending_is_told_apart_from_other_errors(
 
     logged = lines(capsys.readouterr().err)
     assert [(line["event"], line["level"]) for line in logged] == [(event, level)]
+
+
+def test_record_failure_is_one_error_line_with_the_numbers(capsys):
+    from datetime import UTC, datetime
+
+    from agent_builder_core.contracts.model import CallRecord
+    from agent_builder_runtime.observability import report_record_error
+
+    configure_logging("INFO", "json")
+    record = CallRecord(
+        request_id="r-1",
+        model="fast",
+        provider="fake",
+        provider_model="m",
+        status="ok",
+        finish_reason="stop",
+        input_tokens=1,
+        output_tokens=2,
+        cost="0.1",
+        latency_ms=3,
+        started_at=datetime.now(UTC),
+    )
+
+    report_record_error(record, ConnectionError("DB 끊김"))
+
+    (line,) = lines(capsys.readouterr().err)
+    assert (line["event"], line["level"]) == ("model.call.record_failed", "error")
+    assert line["error"] == "ConnectionError"
+    assert line["record"]["cost"] == "0.1"

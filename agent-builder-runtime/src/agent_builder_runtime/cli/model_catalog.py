@@ -52,6 +52,12 @@ def register(groups: argparse._SubParsersAction) -> None:
         default="text",
         help="받는 조각, 쉼표로 (text,image,file). 기본 text",
     )
+    set_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="이 모델만 다르게 기다릴 시간(초). 없으면 공급자 프로필의 기본값",
+    )
 
 
 def run(args: argparse.Namespace) -> int:
@@ -71,6 +77,7 @@ def run(args: argparse.Namespace) -> int:
                 provider=args.provider,
                 provider_model=args.model,
                 input_kinds=tuple(k.strip() for k in args.inputs.split(",") if k),
+                timeout_seconds=args.timeout,
             )
             catalog.upsert(alias)
             print(_line(alias))
@@ -95,4 +102,10 @@ def run(args: argparse.Namespace) -> int:
 def _line(alias: ModelSpec) -> str:
     state = "켜짐" if alias.enabled else "꺼짐"
     kinds = ",".join(alias.input_kinds)
-    return f"{alias.name}\t{alias.provider}\t{alias.provider_model}\t{kinds}\t{state}"
+    timeout = (
+        "기본" if alias.timeout_seconds is None else f"{alias.timeout_seconds:g}초"
+    )
+    return (
+        f"{alias.name}\t{alias.provider}\t{alias.provider_model}\t{kinds}"
+        f"\t{timeout}\t{state}"
+    )

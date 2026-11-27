@@ -10,14 +10,24 @@ get_db().fetch_all("select ...")
 
 from functools import lru_cache
 
+from agent_builder_core.model import ModelGateway
 from agent_builder_infra.providers.object_storage import ObjectStorageProvider
+from agent_builder_infra.providers.openrouter import OpenRouterProvider
 from agent_builder_infra.providers.postgres import PostgresProvider
 from agent_builder_infra.providers.redis import RedisProvider
+from agent_builder_infra.services.cipher import FernetCipher
 from agent_builder_infra.services.db import DbService
 from agent_builder_infra.services.object_storage import ObjectStorageService
 from agent_builder_infra.services.redis import RedisService
 from agent_builder_infra.settings import get_settings
-from agent_builder_runtime.repositories import ModelCatalogRepository
+from agent_builder_runtime.model_providers import (
+    OpenRouterModelProvider,
+    ProviderConnections,
+)
+from agent_builder_runtime.repositories import (
+    ModelCatalogRepository,
+    ProviderProfileRepository,
+)
 
 
 @lru_cache
@@ -62,15 +72,70 @@ def get_model_catalog() -> ModelCatalogRepository:
     return ModelCatalogRepository(get_db(), get_redis())
 
 
+@lru_cache
+def get_cipher() -> FernetCipher:
+    """비밀 값 암호화. 마스터 키(SECRET_ENCRYPTION_KEY)가 있어야 한다."""
+    key = get_settings().secret_encryption_key
+    if key is None:
+        raise RuntimeError("SECRET_ENCRYPTION_KEY 가 없다 — .env 에 적는다")
+    return FernetCipher(key.get_secret_value())
+
+
+@lru_cache
+def get_provider_profiles() -> ProviderProfileRepository:
+    # 마스터 키는 키를 풀거나 넣을 때만 필요해서, 만들 함수를 넘긴다.
+    return ProviderProfileRepository(get_db(), get_redis(), get_cipher)
+
+
+@lru_cache
+def get_provider_connections() -> ProviderConnections:
+    """공급자 연결. 프로필이 바뀌면 연결을 새로 만든다.
+
+    지금 공급자는 OpenRouter 하나라, 연결점도 OpenRouterProvider 하나로 만든다.
+    """
+    return ProviderConnections(
+        get_provider_profiles(),
+        connect=lambda base_url, api_key: OpenRouterProvider(
+            api_key=api_key, base_url=base_url
+        ),
+    )
+
+
+@lru_cache
+def get_model_gateway() -> ModelGateway:
+    """모델 호출 서비스.
+
+    공급자는 이름으로 고른다 — 대응표의 ModelSpec.provider 와 같은 값.
+    """
+    openrouter = OpenRouterModelProvider(get_provider_connections())
+    return ModelGateway(get_model_catalog(), {openrouter.name: openrouter})
+
+
 def close_all() -> None:
     """프로세스를 끝낼 때 부른다. 만든 적 없는 프로바이더는 만들지 않는다.
 
     부른 뒤에 get_* 를 다시 부르면 새로 만든다.
     """
-    providers = (get_postgres_provider, get_redis_provider, get_object_storage_provider)
+    providers = (
+        get_postgres_provider,
+        get_redis_provider,
+        get_object_storage_provider,
+    )
+    # 공급자 연결은 프로필마다 열려 있으므로 연결 관리자가 닫는다.
+    if get_provider_connections.cache_info().currsize:
+        get_provider_connections().close_all()
     for get_provider in providers:
         if get_provider.cache_info().currsize:
             get_provider().close()
-    services = (get_db, get_redis, get_object_storage, get_model_catalog)
+    services = (
+        get_db,
+        get_redis,
+        get_object_storage,
+        get_model_catalog,
+        get_cipher,
+        get_provider_profiles,
+        get_provider_connections,
+        get_model_gateway,
+    )
     for getter in (*providers, *services):
         getter.cache_clear()

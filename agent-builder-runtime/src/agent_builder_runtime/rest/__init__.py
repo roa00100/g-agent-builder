@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from agent_builder_runtime.container import close_all
-from agent_builder_runtime.rest import model_catalog
+from agent_builder_runtime.rest import model_catalog, model_provider
 from agent_builder_runtime.settings import get_runtime_settings
 
 
@@ -31,6 +31,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(model_catalog.router)
+    app.include_router(model_provider.router)
     return app
 
 

@@ -7,10 +7,10 @@
 import argparse
 from collections.abc import Sequence
 
-from agent_builder_runtime.cli import model_catalog
+from agent_builder_runtime.cli import model_catalog, model_provider
 
 # 묶음을 더하면 여기에 모듈을 넣는다.
-_GROUPS = (model_catalog,)
+_GROUPS = (model_catalog, model_provider)
 
 
 def run(argv: Sequence[str]) -> int:

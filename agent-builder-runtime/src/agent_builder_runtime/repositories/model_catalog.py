@@ -99,6 +99,7 @@ def _to_values(spec: ModelSpec) -> dict:
         "provider_model": spec.provider_model,
         "input_kinds": list(spec.input_kinds),
         "enabled": spec.enabled,
+        "timeout_seconds": spec.timeout_seconds,
     }
 
 

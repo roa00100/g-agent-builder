@@ -26,6 +26,9 @@ class ModelSpec(Envelope):
     input_kinds: tuple[InputKind, ...] = Field(min_length=1)
     # 끄면 이 이름으로 오는 요청을 거부한다. 지우지 않고 끌 수 있게 둔다.
     enabled: bool = True
+    # 이 모델만 다르게 기다릴 시간(초) — 생각이 긴 모델 등.
+    # 비우면 공급자 프로필의 기본값을 쓴다.
+    timeout_seconds: float | None = Field(default=None, gt=0)
 
 
 class UnknownModel(LookupError):

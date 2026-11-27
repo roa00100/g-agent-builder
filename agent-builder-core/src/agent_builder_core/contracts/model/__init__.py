@@ -1,4 +1,4 @@
-"""모델에 관한 계약 — 내용(조각·출처), 요청, 응답, 모델 대응표."""
+"""모델에 관한 계약 — 내용(조각·출처), 요청, 응답, 모델 대응표, 공급자."""
 
 from agent_builder_core.contracts.model.catalog import (
     DisabledModel,
@@ -20,6 +20,7 @@ from agent_builder_core.contracts.model.content import (
     TextPart,
     UrlSource,
 )
+from agent_builder_core.contracts.model.provider import ModelProvider, UnknownProvider
 from agent_builder_core.contracts.model.request import (
     GenerationParams,
     Message,
@@ -41,6 +42,8 @@ from agent_builder_core.contracts.model.response import (
 )
 
 __all__ = [
+    "UnknownProvider",
+    "ModelProvider",
     "parse_output",
     "Usage",
     "ModelResponse",

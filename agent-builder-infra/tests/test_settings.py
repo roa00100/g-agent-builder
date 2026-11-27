@@ -1,40 +1,106 @@
 import pytest
 from pydantic import ValidationError
 
+from agent_builder_infra.providers import RedisProvider
 from agent_builder_infra.settings import Settings
 
-DB_URL = "postgresql+psycopg://u:p@127.0.0.1:5432/d"
-REDIS_URL = "redis://127.0.0.1:6379/0"
+REQUIRED = {
+    "POSTGRES_USER": "u",
+    "POSTGRES_PASSWORD": "p",
+    "POSTGRES_HOST": "127.0.0.1",
+    "POSTGRES_PORT": "5432",
+    "POSTGRES_DB": "d",
+    "REDIS_HOST": "127.0.0.1",
+    "REDIS_PORT": "6379",
+    "REDIS_DB": "0",
+}
 
 
-def test_reads_urls_from_environment(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", DB_URL)
-    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+@pytest.fixture
+def env(monkeypatch):
+    """필수 값을 모두 채운다. 테스트가 하나씩 바꾸거나 지운다."""
+    for name, value in REQUIRED.items():
+        monkeypatch.setenv(name, value)
+    return monkeypatch
 
+
+def test_builds_database_url_from_parts(env):
+    url = Settings(_env_file=None).database_url
+
+    assert url.drivername == "postgresql+psycopg"
+    assert (url.username, url.host, url.port, url.database) == (
+        "u",
+        "127.0.0.1",
+        5432,
+        "d",
+    )
+    assert url.password == "p"
+
+
+def test_password_with_special_characters_survives(env):
+    env.setenv("POSTGRES_PASSWORD", "p@ss:w/rd")
+
+    url = Settings(_env_file=None).database_url
+
+    assert url.password == "p@ss:w/rd"
+    assert url.host == "127.0.0.1"
+
+
+def test_password_is_hidden(env):
+    env.setenv("POSTGRES_PASSWORD", "hidden-secret")
     settings = Settings(_env_file=None)
 
-    assert settings.database_url == DB_URL
-    assert settings.redis_url == REDIS_URL
+    assert "hidden-secret" not in repr(settings)
+    assert "hidden-secret" not in str(settings.database_url)
 
 
-def test_openrouter_key_is_optional_and_hidden(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", DB_URL)
-    monkeypatch.setenv("REDIS_URL", REDIS_URL)
+def test_redis_url_without_password(env):
+    env.delenv("REDIS_PASSWORD", raising=False)
+    assert Settings(_env_file=None).redis_url == "redis://127.0.0.1:6379/0"
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    # .env 에 `REDIS_PASSWORD=` 로 비워 둔 것도 비밀번호 없음이다.
+    env.setenv("REDIS_PASSWORD", "")
+    assert Settings(_env_file=None).redis_url == "redis://127.0.0.1:6379/0"
+
+
+def test_redis_url_with_password(env):
+    env.setenv("REDIS_PASSWORD", "pw")
+    env.setenv("REDIS_DB", "3")
+
+    assert Settings(_env_file=None).redis_url == "redis://:pw@127.0.0.1:6379/3"
+
+
+def test_redis_password_with_special_characters_survives(env):
+    env.setenv("REDIS_PASSWORD", "p@ss:w/rd")
+
+    url = Settings(_env_file=None).redis_url
+    # redis-py 가 주소를 풀었을 때 원래 비밀번호와 호스트가 그대로 나와야 한다.
+    kwargs = RedisProvider(url).client.connection_pool.connection_kwargs
+
+    assert kwargs["password"] == "p@ss:w/rd"
+    assert kwargs["host"] == "127.0.0.1"
+    assert kwargs["db"] == 0
+
+
+def test_redis_password_is_hidden(env):
+    env.setenv("REDIS_PASSWORD", "hidden-secret")
+
+    assert "hidden-secret" not in repr(Settings(_env_file=None))
+
+
+def test_openrouter_key_is_optional_and_hidden(env):
+    env.setenv("OPENROUTER_API_KEY", "")
     assert Settings(_env_file=None).openrouter_api_key is None
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    env.setenv("OPENROUTER_API_KEY", "test-key")
     key = Settings(_env_file=None).openrouter_api_key
     assert key.get_secret_value() == "test-key"
     assert "test-key" not in repr(key)
 
 
-@pytest.mark.parametrize("missing", ["DATABASE_URL", "REDIS_URL"])
-def test_missing_url_fails(monkeypatch, missing):
-    monkeypatch.setenv("DATABASE_URL", DB_URL)
-    monkeypatch.setenv("REDIS_URL", REDIS_URL)
-    monkeypatch.delenv(missing)
+@pytest.mark.parametrize("missing", list(REQUIRED))
+def test_missing_value_fails(env, missing):
+    env.delenv(missing)
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)

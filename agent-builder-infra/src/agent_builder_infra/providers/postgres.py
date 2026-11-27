@@ -1,4 +1,4 @@
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import URL, Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -8,7 +8,7 @@ class PostgresProvider:
     연결은 처음 쓸 때 만들어진다. 만드는 것만으로는 DB 에 붙지 않는다.
     """
 
-    def __init__(self, url: str) -> None:
+    def __init__(self, url: str | URL) -> None:
         self.engine: Engine = create_engine(url)
         self.session_factory: sessionmaker[Session] = sessionmaker(self.engine)
 

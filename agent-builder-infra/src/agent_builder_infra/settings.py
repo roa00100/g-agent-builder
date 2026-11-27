@@ -2,9 +2,11 @@
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 
 def _find_env_file() -> Path | None:
@@ -27,22 +29,66 @@ class Settings(BaseSettings):
         # 같은 이름의 환경변수가 있으면 .env 보다 그쪽이 이긴다.
         env_file=_find_env_file(),
         env_file_encoding="utf-8",
-        # .env 에는 docker compose 만 쓰는 값(POSTGRES_*)도 같이 있다.
-        # 그래서 모르는 키를 오류로 보지 않고 넘긴다.
+        # .env 에 앱이 모르는 키가 있어도 오류로 보지 않고 넘긴다.
         extra="ignore",
         # `OPENROUTER_API_KEY=` 처럼 비워 둔 값은 빈 문자열이 아니라 None 으로 읽는다.
         env_parse_none_str="",
     )
 
-    # 예: postgresql+psycopg://사용자:비밀번호@127.0.0.1:5432/DB이름
-    database_url: str
+    # PostgreSQL 접속 값. docker compose 가 같은 POSTGRES_* 로 계정과 DB 를 만든다 —
+    # 값을 한 곳(.env)에만 적으려고 주소를 통째로 받지 않고 나눠 읽는다.
+    postgres_user: str
+    # SecretStr 이라 로그나 출력에 값이 찍히지 않는다.
+    postgres_password: SecretStr
+    # PC 에서는 127.0.0.1, 컨테이너 안에서는 compose 서비스 이름 db.
+    postgres_host: str
+    postgres_port: int
+    postgres_db: str
 
-    # 예: redis://127.0.0.1:6379/0 — 끝의 숫자는 Redis 의 DB 번호다.
-    redis_url: str
+    # Redis 접속 값. Postgres 와 같은 까닭으로 주소를 통째로 받지 않고 나눠 읽는다.
+    # PC 에서는 127.0.0.1, 컨테이너 안에서는 compose 서비스 이름 redis.
+    redis_host: str
+    redis_port: int
+    # Redis 안의 DB 번호 (0~15).
+    redis_db: int
+    # 비워 두면 None — 비밀번호 없이 붙는다.
+    # 적으면 compose 의 Redis 도 같은 값을 요구한다.
+    redis_password: SecretStr | None = None
 
     # 모델을 부르지 않는 명령(마이그레이션 등)은 키 없이 돌아야 하므로 없어도 된다.
     # SecretStr 이라 로그나 출력에 값이 찍히지 않는다. 꺼낼 때는 .get_secret_value()
     openrouter_api_key: SecretStr | None = None
+
+    @property
+    def database_url(self) -> URL:
+        """나눠 읽은 값으로 접속 주소를 조립한다. 드라이버는 psycopg 3.
+
+        URL.create 가 비밀번호의 @ : / 같은 글자를 알아서 이스케이프한다.
+        출력하면 비밀번호는 *** 로 가려진다.
+        """
+        return URL.create(
+            "postgresql+psycopg",
+            username=self.postgres_user,
+            password=self.postgres_password.get_secret_value(),
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        )
+
+    @property
+    def redis_url(self) -> str:
+        """나눠 읽은 값으로 접속 주소를 조립한다.
+
+        비밀번호가 있으면 redis://:비밀번호@호스트:포트/DB, 없으면 redis://호스트:포트/DB.
+        비밀번호의 @ : / 같은 글자는 이스케이프한다.
+        돌려주는 문자열에는 비밀번호가 그대로 들어 있다.
+        출력하거나 로그에 남기지 않는다.
+        """
+        auth = ""
+        if self.redis_password is not None:
+            # safe="": / 까지 이스케이프해야 주소의 구분자와 헷갈리지 않는다.
+            auth = f":{quote(self.redis_password.get_secret_value(), safe='')}@"
+        return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
 
 @lru_cache

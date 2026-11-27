@@ -35,8 +35,16 @@ jobs:
           --health-retries 15
     env:
       # 이 작업 안에서만 뜨는 일회용 DB·Redis 의 값이다.
-      DATABASE_URL: postgresql+psycopg://agent_builder:agent_builder_ci@127.0.0.1:5432/agent_builder
-      REDIS_URL: redis://127.0.0.1:6379/0
+      # 위 db 서비스의 env 와 같아야 한다.
+      POSTGRES_USER: agent_builder
+      POSTGRES_PASSWORD: agent_builder_ci
+      POSTGRES_DB: agent_builder
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      # CI 의 Redis 는 비밀번호 없이 뜬다. REDIS_PASSWORD 를 두지 않는다.
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

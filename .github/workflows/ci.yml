@@ -26,9 +26,20 @@ jobs:
           --health-interval 2s
           --health-timeout 3s
           --health-retries 15
+      redis:
+        # docker-compose.yml 과 같은 메이저 버전. CI 는 일회용이라 AOF 를 켜지 않는다.
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
     env:
       # 이 작업 안에서만 뜨는 일회용 DB 의 값이다.
       DATABASE_URL: postgresql+psycopg://agent_builder:agent_builder_ci@127.0.0.1:5432/agent_builder
+      REDIS_URL: redis://127.0.0.1:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

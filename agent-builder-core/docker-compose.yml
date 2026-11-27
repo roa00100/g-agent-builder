@@ -21,6 +21,24 @@ services:
       timeout: 3s
       retries: 15
 
+  redis:
+    # 메이저 버전을 고정한다.
+    image: redis:8
+    # 체크포인트를 담으므로 꺼졌다 켜져도 남아야 한다 — AOF 로 디스크에 쓴다.
+    # appendfsync always: 쓸 때마다 디스크에 확정한다. 사용자 한 명이라 쓰기가 적어
+    # 비용이 작다. everysec 이면 마지막 1초의 쓰기를 잃을 수 있다.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
+    ports:
+      # 이 PC 에서만 붙는다. 바깥 네트워크에 열지 않는다.
+      - "127.0.0.1:${REDIS_PORT}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
   app:
     # `docker compose up` 으로는 뜨지 않는다. `docker compose run --rm app` 으로 부른다.
     profiles: ["app"]
@@ -28,9 +46,13 @@ services:
     environment:
       # 컨테이너 안에서는 DB 가 127.0.0.1 이 아니라 서비스 이름 db 에 있다.
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:
   db-data:
+  redis-data:

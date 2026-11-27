@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # 예: postgresql+psycopg://사용자:비밀번호@127.0.0.1:5432/DB이름
     database_url: str
 
+    # 예: redis://127.0.0.1:6379/0 — 끝의 숫자는 Redis 의 DB 번호다.
+    redis_url: str
+
     # 모델을 부르지 않는 명령(마이그레이션 등)은 키 없이 돌아야 하므로 없어도 된다.
     # SecretStr 이라 로그나 출력에 값이 찍히지 않는다. 꺼낼 때는 .get_secret_value()
     openrouter_api_key: SecretStr | None = None

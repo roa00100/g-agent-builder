@@ -18,6 +18,8 @@ dependencies = [
     "alembic>=1.14",
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
+    # 하한은 설치해 연결을 확인한 버전이다.
+    "redis>=8.2",
 ]
 
 [project.optional-dependencies]

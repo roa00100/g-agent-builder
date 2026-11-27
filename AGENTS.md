@@ -62,7 +62,7 @@
 | 미정 | Q1~Q3, Q5 (대표 workflow, AI 보조 단계, 두 번째 workflow, 자료 위치) |
 | 결정 | 사용자가 직접 쓰는 것은 기본 구조 코드다. 밑바탕까지 전부 직접 쓰지 않으며, 쓸 수 있는 오픈소스는 적극 검토한다 (2026-11-27 사용자 지시) |
 | 결정 | OpenRouter 는 `openai` SDK 로 부른다 — 주소만 바꿔 쓴다 (2026-11-27 사용자가 고름) |
-| 결정 | 프로바이더 인터페이스 — core 계약 `ModelProvider`(name, complete(request, spec) → ModelResponse, 한 번만 보내고 실패는 ModelCallFailed)와 `UnknownProvider`. 호출 순서(대응표 찾기 → check_inputs → 공급자 고르기 → 보내기)는 core 서비스 `ModelGateway` 가 맡는다. infra 에는 OpenRouter 라이브러리와의 연결점(`OpenRouterProvider` — 클라이언트, 보내고 받기, SDK 오류를 기술의 말로 넘기기)만 두고, 그 밖의 공급자 조립과 서비스(요청·응답 바꾸기, 실패를 계약의 말로 해석하기)는 runtime(`model_providers/`, `OpenRouterModelProvider`)에 둔다 (처음에는 infra 에 호출 서비스 `ChatCompletionService` 와 실패 분류를 두었다가 사용자가 정정함). 다시 보내기는 프로바이더·Gateway 가 하지 않고 나중에 보조 고리의 런타임이 정한다. 스트리밍은 나중. `StoredSource` 는 FileStore 가 생기기 전까지 Gateway 가 보내기 전에 막는다. 코드는 에이전트가 쓰고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
+| 결정 | 프로바이더 인터페이스 — core 계약 `ModelProvider`(name, complete(request, spec) → ModelResponse, 한 번만 보내고 실패는 ModelCallFailed)와 `UnknownProvider`. 호출 순서(대응표 찾기 → check_inputs → 공급자 고르기 → 보내기)는 core 서비스 `ModelGateway` 가 맡는다. infra 에는 OpenRouter 라이브러리와의 연결점(`OpenRouterClient` — 클라이언트, 보내고 받기, SDK 오류를 기술의 말로 넘기기)만 두고, 그 밖의 공급자 조립과 서비스(요청·응답 바꾸기, 실패를 계약의 말로 해석하기)는 runtime(`model_adapters/`, `OpenRouterAdapter`)에 둔다 (처음에는 infra 에 호출 서비스 `ChatCompletionService` 와 실패 분류를 두었다가 사용자가 정정함). 다시 보내기는 프로바이더·Gateway 가 하지 않고 나중에 보조 고리의 런타임이 정한다. 스트리밍은 나중. `StoredSource` 는 FileStore 가 생기기 전까지 Gateway 가 보내기 전에 막는다. 코드는 에이전트가 쓰고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
 | 결정 | 패키지는 개념별로 나누고, 각 개념 안에서 층을 나눈다. core 의 개념에는 schemas·service 만 두고, SQLAlchemy 테이블 정의는 infra 의 `tables/` 에 둔다. 개념 서비스는 세션이 아니라 core 의 계약을 생성자로 받는다 (2026-11-27 사용자가 고름 — 처음의 「models 도 개념 안에, 세션은 인자로」를 core 분리에 맞춰 바꿈) |
 | 결정 | 개념은 `workflow`(정의), `run`(실행 상태), `assist`(AI 보조 단계) 셋으로 시작한다 (2026-11-27 사용자가 고름) |
 | 결정 | Redis 를 더해 체크포인트 같은 상태를 저장한다 (2026-11-27 사용자 지시) |
@@ -92,12 +92,13 @@
 | 결정 | 패키지는 셋이다. core 는 계약, infra 는 runtime 이 쓸 infra 구성, runtime(`agent_builder_runtime`)은 실행 진입점(CLI·REST)이고, core 계약의 구현과 조립도 맡는다. 명령줄 진입점은 runtime 에 둔다 (2026-11-27 사용자 지시) |
 | 결정 | 모델 대응표의 계약은 core(`contracts/model/`)에 둔다 — `ModelSpec`(name·provider·provider_model·input_kinds·enabled), 계약 `ModelCatalog`(찾기·고치기를 함께 — 처음에는 읽기·고치기 둘로 나눴다가 사용자가 하나로 합침, 권한은 계약이 다루지 않고 필요해지면 부르는 쪽에서 정한다), 오류 `UnknownModel`·`DisabledModel`, 규칙 `resolve_model`. `InputKind` 는 core 한 곳에서 정의한다. runtime 의 `ModelCatalogRepository`(`repositories/model_catalog.py`)가 infra 의 테이블·캐시로 이 계약을 채운다 (구현 이름은 저장 기술을 드러내지 않는다, 사용자가 고름). 테이블 정의는 infra 의 `tables/model_alias.py` 에 있다. Repository 는 SQLAlchemy 를 직접 쓰지 않고 infra 의 DbService·crud·RedisService 만 쓴다(사용자가 고름). 테이블 `model_alias` 의 이름은 그대로 둔다(명령줄 묶음은 처음에 `model-alias` 로 두었다가 계약 이름에 맞춰 `model-catalog` 로 바꿈). 이번 코드는 에이전트가 기존 코드를 옮겨 작성하고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
 | 결정 | 공급자 설정(API 키·주소·대기 시간)은 환경변수가 아니라 공급자 프로필(테이블 `model_provider`)에 둔다. Postgres 가 기준이고 Redis 에 캐싱한다. 키는 모델 행이 아니라 공급자 행에 하나 둔다. 키는 `cryptography` 의 Fernet 으로 암호화해 저장하고(캐시에도 암호문), 마스터 키 하나만 환경변수에 둔다. 대기 시간은 공급자 기본값을 두고 모델별로 덮어쓸 수 있다(`ModelSpec.timeout_seconds`). core 는 키를 모른다 (2026-11-27 사용자가 고름) |
-| 결정 | 이름 규칙: 기술을 감싸는 접속 계층은 기술 이름(`PostgresProvider`·`RedisService` 등), core 계약을 채우는 구현은 역할 이름(`ModelCatalogRepository` 등) (2026-11-27 사용자가 고름) |
+| 결정 | 이름 규칙: 기술을 감싸는 접속 계층은 기술 이름, core 계약을 채우는 구현은 역할 이름(`ModelCatalogRepository`·`OpenRouterAdapter` 등) (2026-11-27 사용자가 고름). 접속 계층은 다시 둘로 나눈다 — 저장소 접속(Postgres·Redis·오브젝트 스토리지)은 `~Provider`(infra `providers/`), 외부 API 접속(OpenRouter 등 모델 공급자)은 `~Client`(infra `clients/`) (2026-11-27 사용자가 고름 — 처음에는 OpenRouter 접속도 `OpenRouterProvider` 였다) |
+| 결정 | core 계약 `ModelProvider` 를 공급자 모양과 맞바꾸는 runtime 구현은 Adapter 로 부른다 — `model_adapters/openrouter/`, `OpenRouterAdapter`. infra 의 접속 계층 이름과 낱말이 겹치지 않게 하려는 것이다 (2026-11-27 사용자가 고름). infra 의 OpenRouter 접속은 이어서 `OpenRouterClient` 로 바꿨다 — 위 이름 규칙 참고 |
 | 결정 | runtime 의 실행 모드는 `__main__` 에서 프로필(cli / rest)로 고른다 (2026-11-27 사용자 지시) |
 | 결정 | REST 진입 계층의 웹 프레임워크는 FastAPI 다. 자리는 runtime 의 `rest/` 다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
-| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterModelProvider)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
+| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
 
 ## 6. 저장소 구성
 
@@ -141,7 +142,9 @@ agent_builder_core/                     계약
 agent_builder_infra/                    기술 구성
   settings.py               환경변수·.env 에서 읽는 설정
   providers/                접속 — 자원을 만들고, 확인(ping)하고, 닫는다
-    postgres.py · redis.py · object_storage.py · openrouter.py(OpenRouter 연결점 — SDK 클라이언트, chat() 으로 한 번 보내고 받기, SDK 오류는 OpenRouterCallError 로 넘김. 자동 재시도 끔)
+    postgres.py · redis.py · object_storage.py   저장소 접속 (~Provider)
+  clients/                  외부 API 접속 (~Client)
+    openrouter.py           OpenRouterClient — SDK 클라이언트, chat() 으로 한 번 보내고 받기, SDK 오류는 OpenRouterCallError 로 넘김. 자동 재시도 끔
   services/                 공통 동작 — 프로바이더를 생성자로 받는다
     db.py                   DbService: 트랜잭션·커서·SQL 직접 실행
     redis.py                RedisService: 문자열·JSON·모델·해시·카운터·키 (쓰기는 ttl 필수)
@@ -157,9 +160,9 @@ agent_builder_runtime/                  계약 구현·조립·진입점
   repositories/             core 계약의 구현 — infra 의 값 ↔ core 의 모양. SQLAlchemy 를 직접 쓰지 않는다
     model_catalog.py        ModelCatalogRepository (테이블 model_alias + Redis 캐시)
     provider_profile.py     ProviderProfileRepository — 공급자 프로필 (테이블 model_provider + Redis 캐시, 키는 어디서나 암호문)
-  model_providers/          core 의 ModelProvider 구현 — 공급자마다 하나. openai SDK 를 직접 쓰지 않는다
+  model_adapters/          core 의 ModelProvider 구현 — 공급자마다 하나. openai SDK 를 직접 쓰지 않는다
     connections.py          ProviderConnections — 프로필로 연결점을 만들고, 프로필이 바뀌면(updated_at) 새로 만든다
-    openrouter.py           OpenRouterModelProvider: ModelRequest ↔ OpenRouter 본문, 오류 해석(→ ModelCallFailed)까지 한 곳에서
+    openrouter/             OpenRouterAdapter — adapter.py(흐름: 연결 받기·대기 시간·보내기·시간 재기) · request.py(요청 → 본문) · response.py(본문 → 응답) · errors.py(오류 → 실패 종류)
   container.py              조립 — infra 의 프로바이더·서비스와 runtime 의 구현을 한 번씩 만든다 (get_model_catalog·get_model_gateway 등)
   settings.py               실행 설정 — RUNTIME_PROFILE(cli·rest, 기본 cli), REST_HOST·REST_PORT
   __main__.py               입구 — 프로필(--profile 또는 RUNTIME_PROFILE)로 모드만 고른다

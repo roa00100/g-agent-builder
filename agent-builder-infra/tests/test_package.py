@@ -17,6 +17,7 @@ import pytest
         "agent_builder_infra.tables",
         "agent_builder_infra.tables.model_provider",
         "agent_builder_infra.tables.model_alias",
+        "agent_builder_infra.tables.model_call",
         "agent_builder_infra.providers.object_storage",
         "agent_builder_infra.services.object_storage",
         "agent_builder_infra.observability",

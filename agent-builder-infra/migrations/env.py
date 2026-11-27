@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, pool
 from agent_builder_infra.orm import Base
 from agent_builder_infra.settings import get_settings
 from agent_builder_infra.tables import model_alias as _model_alias_table  # noqa: F401
+from agent_builder_infra.tables import model_call as _model_call_table  # noqa: F401
 from agent_builder_infra.tables import (  # noqa: F401
     model_provider as _model_provider_table,
 )

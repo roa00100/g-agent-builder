@@ -18,6 +18,17 @@ class Item(SampleBase):
     status: Mapped[str] = mapped_column(default="new")
 
 
+class Clash(SampleBase):
+    """열 이름이 crud 함수의 인자 이름(session·model·obj)과 같은 테이블."""
+
+    __tablename__ = "_test_crud_clash"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session: Mapped[str]
+    model: Mapped[str]
+    obj: Mapped[str]
+
+
 @pytest.fixture
 def session(postgres_provider, db):
     """테스트마다 빈 테이블과 세션을 준다. 끝나면 테이블을 지운다."""
@@ -94,3 +105,12 @@ def test_delete(session):
     crud.delete(session, item)
 
     assert crud.count(session, Item) == 0
+
+
+def test_column_names_may_match_argument_names(session):
+    row = crud.create(session, Clash, session="s", model="m", obj="o")
+
+    assert crud.count(session, Clash, model="m") == 1
+    assert crud.find_all(session, Clash, session="s")[0].id == row.id
+    crud.update(session, row, obj="o2", model="m2")
+    assert (row.model, row.obj) == ("m2", "o2")

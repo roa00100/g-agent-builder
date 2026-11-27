@@ -14,6 +14,9 @@ from typing import Any
 from sqlalchemy import func, inspect, select
 from sqlalchemy.orm import DeclarativeBase, Session
 
+# 열 값을 **values·**filters 로 받는 함수는 앞의 인자를 위치 전용(/)으로 둔다 —
+# 열 이름이 session·model·obj 여도(예: model_call.model) 부딪히지 않게.
+
 
 def find_by_id[T: DeclarativeBase](
     session: Session, model: type[T], id_: Any
@@ -24,6 +27,7 @@ def find_by_id[T: DeclarativeBase](
 def find_all[T: DeclarativeBase](
     session: Session,
     model: type[T],
+    /,
     *,
     limit: int | None = None,
     offset: int = 0,
@@ -42,12 +46,14 @@ def find_all[T: DeclarativeBase](
     return list(session.scalars(statement))
 
 
-def count[T: DeclarativeBase](session: Session, model: type[T], **filters: Any) -> int:
+def count[T: DeclarativeBase](
+    session: Session, model: type[T], /, **filters: Any
+) -> int:
     statement = select(func.count()).select_from(model).filter_by(**filters)
     return session.scalar(statement) or 0
 
 
-def create[T: DeclarativeBase](session: Session, model: type[T], **values: Any) -> T:
+def create[T: DeclarativeBase](session: Session, model: type[T], /, **values: Any) -> T:
     """모르는 열 이름을 넘기면 모델 생성자가 오류를 낸다."""
     obj = model(**values)
     session.add(obj)
@@ -55,7 +61,7 @@ def create[T: DeclarativeBase](session: Session, model: type[T], **values: Any) 
     return obj
 
 
-def update[T: DeclarativeBase](session: Session, obj: T, **values: Any) -> T:
+def update[T: DeclarativeBase](session: Session, obj: T, /, **values: Any) -> T:
     """모르는 열 이름은 오류다 — 그냥 두면 DB 에 없는 속성이 조용히 붙는다."""
     known = set(inspect(type(obj)).attrs.keys())
     unknown = set(values) - known

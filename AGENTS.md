@@ -54,7 +54,7 @@
 
 | 항목 | 상태 |
 |---|---|
-| 결정 | 구현 언어는 Python (2026-11-27 사용자 지시). 코드는 `agent-builder-core/`(계약)와 `agent-builder-infra/`(구현)에 나눠 둔다 (2026-11-27 사용자가 고름) |
+| 결정 | 구현 언어는 Python (2026-11-27 사용자 지시). 코드는 `agent-builder-core/`(계약)·`agent-builder-infra/`(기술 구성)·`agent-builder-runtime/`(계약 구현·조립·진입점)에 나눠 둔다 (2026-11-27 사용자가 고름) |
 | 결정 | DB 는 PostgreSQL (2026-11-27 사용자 지시) |
 | 결정 | LangGraph, pgvector 는 쓰지 않는다 (2026-11-27 사용자 지시). 웹 프레임워크는 core·infra 에 두지 않고, REST 를 여는 진입 계층에서만 쓴다 (2026-11-27 사용자가 고름 — 처음의 「웹 프레임워크는 쓰지 않는다」를 1절의 REST 정정에 맞춰 바꿈) |
 | 결정 | 모델은 프로바이더 형태로 공급자를 고른다. 첫 공급자는 OpenRouter (2026-11-27 사용자 지시) |
@@ -63,13 +63,13 @@
 | 결정 | 사용자가 직접 쓰는 것은 기본 구조 코드다. 밑바탕까지 전부 직접 쓰지 않으며, 쓸 수 있는 오픈소스는 적극 검토한다 (2026-11-27 사용자 지시) |
 | 결정 | OpenRouter 는 `openai` SDK 로 부른다 — 주소만 바꿔 쓴다 (2026-11-27 사용자가 고름) |
 | 미정 | 프로바이더 인터페이스의 모양 (사용자가 쓰는 구조 코드) |
-| 결정 | 패키지는 개념별로 나누고, 각 개념 안에서 층을 나눈다. core 의 개념에는 schemas·service 만 두고, SQLAlchemy 테이블 모델은 infra 에 둔다. 개념 서비스는 세션이 아니라 core 의 계약을 생성자로 받는다 (2026-11-27 사용자가 고름 — 처음의 「models 도 개념 안에, 세션은 인자로」를 core 분리에 맞춰 바꿈) |
+| 결정 | 패키지는 개념별로 나누고, 각 개념 안에서 층을 나눈다. core 의 개념에는 schemas·service 만 두고, SQLAlchemy 테이블 정의는 infra 의 `tables/` 에 둔다. 개념 서비스는 세션이 아니라 core 의 계약을 생성자로 받는다 (2026-11-27 사용자가 고름 — 처음의 「models 도 개념 안에, 세션은 인자로」를 core 분리에 맞춰 바꿈) |
 | 결정 | 개념은 `workflow`(정의), `run`(실행 상태), `assist`(AI 보조 단계) 셋으로 시작한다 (2026-11-27 사용자가 고름) |
 | 결정 | Redis 를 더해 체크포인트 같은 상태를 저장한다 (2026-11-27 사용자 지시) |
 | 제안 — 설정됨 | Redis 8 을 AOF(`appendfsync always`)로 띄워 재시작해도 남게 한다. 클라이언트는 redis-py |
 | 결정 | Postgres 가 기준이다. 단계 결과·채택 여부·기록처럼 남아야 하는 것은 Postgres 에 둔다. Redis 에는 보조 고리가 도는 동안의 중간 상태, 잠금·취소 신호처럼 짧게 사는 것만 둔다. Redis 가 비어도 Postgres 만으로 마지막 확정 단계부터 이어 갈 수 있어야 한다 (2026-11-27 사용자가 고름) |
 | 결정 | 접속 프로바이더(`providers/`)와 공통 서비스(`services/`)를 나눈다. 서비스는 프로바이더를 생성자로 받고, 조립은 `container.py` 한 곳에서 한다. `crud.py` 는 세션만 받는 함수로 둔다 (2026-11-27 사용자가 고름). 프로바이더·서비스·crud 는 infra 에, 조립하는 `container.py` 는 runtime 에 있다 (2026-11-27 사용자가 고름 — 처음에는 infra 에 두었음) |
-| 결정 | core 는 공통 계약 구조를 두는 커널 레벨이다. 특정 기술을 모르고, 의존성은 Pydantic 뿐이다. 구체 구현은 `agent-builder-infra` 에 둔다. infra 가 core 를 import 하고, 반대는 없다 (2026-11-27 사용자가 고름) |
+| 결정 | core 는 공통 계약 구조를 두는 커널 레벨이다. 특정 기술을 모르고, 의존성은 Pydantic 뿐이다. core 계약의 구현(Repository 등)은 runtime 에 둔다. runtime 이 core 와 infra 를 import 하고, infra 도 core 를 import 할 수 있다 (2026-11-27 사용자가 고름 — 처음에는 「구체 구현은 infra」였다. infra 를 「runtime 이 쓸 기술 구성」으로 정한 뒤, infra 의 값을 꺼내 계약에 맞추는 일은 infra 구성이 아니라 runtime 의 일로 바꿈. 클린 아키텍처의 Interface Adapters 와 같은 자리. 이때 에이전트가 「infra 는 core 를 모른다」를 덧붙여 사용자 결정처럼 적었으나 제안이었고, 사용자가 정정함 — 바깥 층이 안쪽 core 에 의존하는 것은 문제없다) |
 | 제안 — 사용자 확인 전 | 이름은 core 를 유지한다(kernel 로 바꾸지 않음) |
 | 미정 | core 의 계약(`contracts/`) — 짧게 사는 값 저장소, 실행 상태 저장소, 모델 공급자 등. 사용자가 쓰는 구조 코드 |
 | 결정 | 첫 계약은 모델 요청(`ModelRequest`)이다. 공급자 중립이고, 봉투 규칙(모르는 필드 거부·만든 뒤 불변)을 따른다 (2026-11-27 사용자가 고름) |
@@ -82,10 +82,12 @@
 | 결정 | 오브젝트 스토리지는 SeaweedFS 다 (2026-11-27 사용자가 고름) |
 | 제안 — 사용자 확인 전 | infra 는 S3 API 로만 말한다(클라이언트 boto3). core 는 스토리지를 모르고, 파일은 우리 쪽 ID(`file_id`)로 가리킨다. 파일 정보는 Postgres, 내용은 SeaweedFS |
 | 결정 | 모델 논리 이름의 대응표는 Postgres 에 두고 Redis 에 캐싱한다 (2026-11-27 사용자 지시) |
-| 결정 | 대응표는 infra 의 함수로 넣고 고친다. 고칠 때 캐시도 같이 지운다 (2026-11-27 사용자가 고름). 지금 있는 진입점은 명령줄 하나다 — 호출 방법은 REST 또는 CLI 라는 1절에 따라 명령줄은 함수 위의 얇은 진입점일 뿐이다 |
-| 결정 | 패키지는 셋이다. core 는 계약, infra 는 runtime 이 쓸 infra 구성, runtime(`agent_builder_runtime`)은 실행 진입점(CLI·REST)이다. 명령줄 진입점은 runtime 에 둔다 (2026-11-27 사용자 지시) |
+| 결정 | 대응표는 함수로 넣고 고친다(지금은 runtime 의 `ModelCatalogRepository`). 고칠 때 캐시도 같이 지운다 (2026-11-27 사용자가 고름). 지금 있는 진입점은 명령줄 하나다 — 호출 방법은 REST 또는 CLI 라는 1절에 따라 명령줄은 함수 위의 얇은 진입점일 뿐이다 |
+| 결정 | 패키지는 셋이다. core 는 계약, infra 는 runtime 이 쓸 infra 구성, runtime(`agent_builder_runtime`)은 실행 진입점(CLI·REST)이고, core 계약의 구현과 조립도 맡는다. 명령줄 진입점은 runtime 에 둔다 (2026-11-27 사용자 지시) |
+| 결정 | 모델 대응표의 계약은 core(`contracts/model/`)에 둔다 — `ModelSpec`(name·provider·provider_model·input_kinds·enabled), 계약 `ModelCatalog`(찾기·고치기를 함께 — 처음에는 읽기·고치기 둘로 나눴다가 사용자가 하나로 합침, 권한은 계약이 다루지 않고 필요해지면 부르는 쪽에서 정한다), 오류 `UnknownModel`·`DisabledModel`, 규칙 `resolve_model`. `InputKind` 는 core 한 곳에서 정의한다. runtime 의 `ModelCatalogRepository`(`repositories/model_catalog.py`)가 infra 의 테이블·캐시로 이 계약을 채운다 (구현 이름은 저장 기술을 드러내지 않는다, 사용자가 고름). 테이블 정의는 infra 의 `tables/model_alias.py` 에 있다. Repository 는 SQLAlchemy 를 직접 쓰지 않고 infra 의 DbService·crud·RedisService 만 쓴다(사용자가 고름). 테이블 `model_alias` 와 명령줄 묶음 `model-alias` 의 이름은 그대로 둔다. 이번 코드는 에이전트가 기존 코드를 옮겨 작성하고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
+| 결정 | 이름 규칙: 기술을 감싸는 접속 계층은 기술 이름(`PostgresProvider`·`RedisService` 등), core 계약을 채우는 구현은 역할 이름(`ModelCatalogRepository` 등) (2026-11-27 사용자가 고름) |
 | 미정 | REST 진입 계층에 쓸 웹 프레임워크 — 그 계층을 만들 때 고른다. 자리는 runtime 이다 |
-| 진행 단계 | W0 이전 — infra 에 공통 기반(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD — 사용자 지시로 에이전트가 작성)이 있고, core 에는 빈 `contracts/` 와 빈 개념 패키지 셋만 있다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
+| 진행 단계 | W0 이전 — core 에 모델 대응표 계약(`contracts/model/`), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 요청(`ModelRequest`)은 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
 
 ## 6. 저장소 구성
 
@@ -103,12 +105,12 @@ docker-compose.yml      로컬 PostgreSQL · Redis · SeaweedFS(오브젝트 스
 agent-builder-core/     계약 — 특정 기술을 모른다. DB 없이 테스트가 돈다
   src/agent_builder_core/
   tests/
-agent-builder-infra/    구현 — core 의 계약을 Postgres·Redis·SeaweedFS·OpenRouter 로 채운다
+agent-builder-infra/    기술 구성 — 접속·공통 서비스·테이블 정의. core 의 정의를 가져다 쓸 수 있다
   Dockerfile
   alembic.ini · migrations/ 스키마 변경 (마이그레이션 1개: model_alias)
   src/agent_builder_infra/
   tests/                    실제 PostgreSQL·Redis·SeaweedFS 에 붙는다
-agent-builder-runtime/  실행 진입점 — CLI(지금)·REST(나중). core 의 계약과 infra 의 구성을 묶어 돌린다
+agent-builder-runtime/  계약 구현·조립·진입점 — infra 의 값을 core 의 계약에 맞추고, CLI(지금)·REST(나중)로 돌린다
   src/agent_builder_runtime/
   tests/
 ```
@@ -118,12 +120,13 @@ agent-builder-runtime/  실행 진입점 — CLI(지금)·REST(나중). core 의
 ```
 agent_builder_core/                     계약
   contracts/                공통 계약 (Protocol). 특정 기술의 말을 쓰지 않는다
+    model/                  content.py(InputKind) · catalog.py(ModelSpec·ModelCatalog·resolve_model)
   workflow/ · run/ · assist/   개념 패키지
   <개념>/
     schemas.py              Pydantic 모델 — 주고받는 데이터의 모양
     service.py              업무 로직. 필요한 계약을 생성자로 받는다
 
-agent_builder_infra/                    구현
+agent_builder_infra/                    기술 구성
   settings.py               환경변수·.env 에서 읽는 설정
   providers/                접속 — 자원을 만들고, 확인(ping)하고, 닫는다
     postgres.py · redis.py · object_storage.py
@@ -133,21 +136,24 @@ agent_builder_infra/                    구현
     object_storage.py       ObjectStorageService: 키로 바이트 넣기·꺼내기·정보·목록·삭제 (S3 API)
   orm.py                    테이블 모델의 부모 Base
   crud.py                   ORM 공통 CRUD — 세션만 받는다
-  model_alias/              모델 논리 이름 대응표 — models·schemas·service
-  <개념>/models.py          SQLAlchemy 테이블 모델 (Base 상속) — 테이블이 생기면
+  tables/                   테이블 정의 (SQLAlchemy ORM 매핑, Base 상속) — 테이블마다 파일 하나. 실제 DDL 은 migrations/
+    model_alias.py          ModelAliasRow
 
-agent_builder_runtime/                  실행 진입점
-  container.py              조립 — infra 의 프로바이더·서비스를 한 번씩 만든다
+agent_builder_runtime/                  계약 구현·조립·진입점
+  repositories/             core 계약의 구현 — infra 의 값 ↔ core 의 모양. SQLAlchemy 를 직접 쓰지 않는다
+    model_catalog.py        ModelCatalogRepository (테이블 model_alias + Redis 캐시)
+  container.py              조립 — infra 의 프로바이더·서비스와 runtime 의 구현을 한 번씩 만든다 (get_model_catalog 등)
   __main__.py               명령줄 — python -m agent_builder_runtime <묶음> <명령>
   cli/<묶음>.py             묶음마다 register()·run(). 서비스를 부르기만 한다
   (나중) rest/              REST 진입점 — 웹 프레임워크는 여기에만
 ```
 
-- 의존 방향은 runtime → infra → core 한쪽뿐이다. core 는 infra·runtime 과 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를, infra 는 runtime 을 import 하지 않는다. 각 패키지의 `test_package.py` 가 이것을 확인한다.
+- 의존은 안쪽으로만 향한다: runtime → infra → core, runtime → core. core 는 infra·runtime 과 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를, infra 는 runtime 을 import 하지 않는다. runtime 은 DB 기술 패키지(sqlalchemy·psycopg·redis·boto3)를 직접 import 하지 않는다. 각 패키지의 `test_package.py` 가 이것을 확인한다.
 - 테이블 모델과 Pydantic 모델을 한 클래스로 합치지 않는다.
+- 이름: 기술을 감싸는 접속 계층(providers·services)은 기술 이름으로, core 계약을 채우는 구현은 역할 이름으로 짓는다(예: `ModelCatalogRepository`). 저장 기술은 구현 이름에 드러내지 않는다.
 - 기능은 서비스 함수에 둔다. CLI·REST 는 그 함수를 부르기만 하는 얇은 진입점이고, 웹 프레임워크는 REST 진입 계층에만 둔다.
 - 프로바이더는 runtime 의 `container.py` 만 만든다. 진입점은 container 에서 받고, 서비스는 생성자로 받는다.
-- 새 테이블 모델 모듈은 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
+- 새 테이블 정의(`tables/<테이블>.py`)는 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 
 설치와 확인. 저장소 루트에서 시작한다.
 

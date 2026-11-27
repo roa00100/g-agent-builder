@@ -1,0 +1,12 @@
+# 저장소에는 LF 로 넣는다. 작업 폴더의 줄바꿈은 git 설정을 따른다.
+* text=auto
+
+# 컨테이너(리눅스) 안에서 읽히는 파일은 작업 폴더에서도 LF 여야 한다.
+Dockerfile text eol=lf
+*.sh text eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary
+*.docx binary

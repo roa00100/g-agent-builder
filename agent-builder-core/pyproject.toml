@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-builder-core"
+version = "0.1.0"
+description = "사용자가 자기만의 에이전트를 조립해 workflow 의 특정 단계에서 AI 보조를 받게 하는 에이전트 빌더의 코어"
+readme = "README.md"
+# 개발 PC 에 설치된 버전이 3.13 이다.
+requires-python = ">=3.13"
+# 런타임 의존성은 구조(Q4·Q7)가 정해진 뒤에 더한다.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 오타 난 마커·설정을 조용히 넘기지 않는다.
+addopts = "--strict-markers --strict-config"
+
+[tool.ruff]
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E·F 기본 오류, I import 정렬, B 흔한 버그, UP 옛 문법.
+select = ["E", "F", "I", "B", "UP"]

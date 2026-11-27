@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# 도구 캐시
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 비밀·로컬 설정 — 예시 파일만 커밋한다
+.env
+.env.*
+!.env.example
+
+# IDE·OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+.DS_Store
+
+# Claude Code 개인 설정
+.claude/settings.local.json

@@ -71,6 +71,7 @@
 | 결정 | 접속 프로바이더(`providers/`)와 공통 서비스(`services/`)를 나눈다. 서비스는 프로바이더를 생성자로 받고, 조립은 `container.py` 한 곳에서 한다. `crud.py` 는 세션만 받는 함수로 둔다 (2026-11-27 사용자가 고름). 프로바이더·서비스·crud 는 infra 에, 조립하는 `container.py` 는 runtime 에 있다 (2026-11-27 사용자가 고름 — 처음에는 infra 에 두었음) |
 | 결정 | core 는 공통 계약 구조를 두는 커널 레벨이다. 특정 기술을 모르고, 의존성은 Pydantic 뿐이다. core 계약의 구현(Repository 등)은 runtime 에 둔다. runtime 이 core 와 infra 를 import 하고, infra 도 core 를 import 할 수 있다 (2026-11-27 사용자가 고름 — 처음에는 「구체 구현은 infra」였다. infra 를 「runtime 이 쓸 기술 구성」으로 정한 뒤, infra 의 값을 꺼내 계약에 맞추는 일은 infra 구성이 아니라 runtime 의 일로 바꿈. 클린 아키텍처의 Interface Adapters 와 같은 자리. 이때 에이전트가 「infra 는 core 를 모른다」를 덧붙여 사용자 결정처럼 적었으나 제안이었고, 사용자가 정정함 — 바깥 층이 안쪽 core 에 의존하는 것은 문제없다) |
 | 제안 — 사용자 확인 전 | 이름은 core 를 유지한다(kernel 로 바꾸지 않음) |
+| 결정 | 입구(cli·rest)에는 번역만 두고, 여러 계약 호출을 엮는 순서는 서비스에 둔다. cli 와 rest 는 같은 서비스를 부른다 (2026-11-27 사용자 지시) |
 | 미정 | core 의 계약(`contracts/`) — 짧게 사는 값 저장소, 실행 상태 저장소, 모델 공급자 등. 사용자가 쓰는 구조 코드 |
 | 결정 | 첫 계약은 모델 요청(`ModelRequest`)이다. 공급자 중립이고, 봉투 규칙(모르는 필드 거부·만든 뒤 불변)을 따른다 (2026-11-27 사용자가 고름) |
 | 결정 | 모델 요청의 `model` 은 논리 이름(예: `fast`, `smart`)이다. infra 가 공급자와 실제 모델 이름으로 바꾼다 (2026-11-27 사용자가 고름) |
@@ -84,9 +85,12 @@
 | 결정 | 모델 논리 이름의 대응표는 Postgres 에 두고 Redis 에 캐싱한다 (2026-11-27 사용자 지시) |
 | 결정 | 대응표는 함수로 넣고 고친다(지금은 runtime 의 `ModelCatalogRepository`). 고칠 때 캐시도 같이 지운다 (2026-11-27 사용자가 고름). 지금 있는 진입점은 명령줄 하나다 — 호출 방법은 REST 또는 CLI 라는 1절에 따라 명령줄은 함수 위의 얇은 진입점일 뿐이다 |
 | 결정 | 패키지는 셋이다. core 는 계약, infra 는 runtime 이 쓸 infra 구성, runtime(`agent_builder_runtime`)은 실행 진입점(CLI·REST)이고, core 계약의 구현과 조립도 맡는다. 명령줄 진입점은 runtime 에 둔다 (2026-11-27 사용자 지시) |
-| 결정 | 모델 대응표의 계약은 core(`contracts/model/`)에 둔다 — `ModelSpec`(name·provider·provider_model·input_kinds·enabled), 계약 `ModelCatalog`(찾기·고치기를 함께 — 처음에는 읽기·고치기 둘로 나눴다가 사용자가 하나로 합침, 권한은 계약이 다루지 않고 필요해지면 부르는 쪽에서 정한다), 오류 `UnknownModel`·`DisabledModel`, 규칙 `resolve_model`. `InputKind` 는 core 한 곳에서 정의한다. runtime 의 `ModelCatalogRepository`(`repositories/model_catalog.py`)가 infra 의 테이블·캐시로 이 계약을 채운다 (구현 이름은 저장 기술을 드러내지 않는다, 사용자가 고름). 테이블 정의는 infra 의 `tables/model_alias.py` 에 있다. Repository 는 SQLAlchemy 를 직접 쓰지 않고 infra 의 DbService·crud·RedisService 만 쓴다(사용자가 고름). 테이블 `model_alias` 와 명령줄 묶음 `model-alias` 의 이름은 그대로 둔다. 이번 코드는 에이전트가 기존 코드를 옮겨 작성하고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
+| 결정 | 모델 대응표의 계약은 core(`contracts/model/`)에 둔다 — `ModelSpec`(name·provider·provider_model·input_kinds·enabled), 계약 `ModelCatalog`(찾기·고치기를 함께 — 처음에는 읽기·고치기 둘로 나눴다가 사용자가 하나로 합침, 권한은 계약이 다루지 않고 필요해지면 부르는 쪽에서 정한다), 오류 `UnknownModel`·`DisabledModel`, 규칙 `resolve_model`. `InputKind` 는 core 한 곳에서 정의한다. runtime 의 `ModelCatalogRepository`(`repositories/model_catalog.py`)가 infra 의 테이블·캐시로 이 계약을 채운다 (구현 이름은 저장 기술을 드러내지 않는다, 사용자가 고름). 테이블 정의는 infra 의 `tables/model_alias.py` 에 있다. Repository 는 SQLAlchemy 를 직접 쓰지 않고 infra 의 DbService·crud·RedisService 만 쓴다(사용자가 고름). 테이블 `model_alias` 의 이름은 그대로 둔다(명령줄 묶음은 처음에 `model-alias` 로 두었다가 계약 이름에 맞춰 `model-catalog` 로 바꿈). 이번 코드는 에이전트가 기존 코드를 옮겨 작성하고 사용자가 검토한다 (2026-11-27 사용자가 고름) |
 | 결정 | 이름 규칙: 기술을 감싸는 접속 계층은 기술 이름(`PostgresProvider`·`RedisService` 등), core 계약을 채우는 구현은 역할 이름(`ModelCatalogRepository` 등) (2026-11-27 사용자가 고름) |
-| 미정 | REST 진입 계층에 쓸 웹 프레임워크 — 그 계층을 만들 때 고른다. 자리는 runtime 이다 |
+| 결정 | runtime 의 실행 모드는 `__main__` 에서 프로필(cli / rest)로 고른다 (2026-11-27 사용자 지시) |
+| 결정 | REST 진입 계층의 웹 프레임워크는 FastAPI 다. 자리는 runtime 의 `rest/` 다 (2026-11-27 사용자가 고름) |
+| 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
+| 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
 | 진행 단계 | W0 이전 — core 에 모델 대응표 계약(`contracts/model/`), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 요청(`ModelRequest`)은 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
 
 ## 6. 저장소 구성
@@ -143,15 +147,20 @@ agent_builder_runtime/                  계약 구현·조립·진입점
   repositories/             core 계약의 구현 — infra 의 값 ↔ core 의 모양. SQLAlchemy 를 직접 쓰지 않는다
     model_catalog.py        ModelCatalogRepository (테이블 model_alias + Redis 캐시)
   container.py              조립 — infra 의 프로바이더·서비스와 runtime 의 구현을 한 번씩 만든다 (get_model_catalog 등)
-  __main__.py               명령줄 — python -m agent_builder_runtime <묶음> <명령>
-  cli/<묶음>.py             묶음마다 register()·run(). 서비스를 부르기만 한다
-  (나중) rest/              REST 진입점 — 웹 프레임워크는 여기에만
+  settings.py               실행 설정 — RUNTIME_PROFILE(cli·rest, 기본 cli), REST_HOST·REST_PORT
+  __main__.py               입구 — 프로필(--profile 또는 RUNTIME_PROFILE)로 모드만 고른다
+  cli/                      cli 모드 — 명령 하나 실행하고 끝. __init__.run() 이 묶음 파서를 조립
+    <묶음>.py               묶음마다 register()·run(). 계약을 부르기만 한다 (model_catalog.py)
+  rest/                     rest 모드 — FastAPI 서버. 웹 프레임워크는 여기에만
+    __init__.py             create_app()·run() — /health 와 묶음별 라우터
+    <묶음>.py               묶음마다 APIRouter. cli 의 같은 묶음과 같은 일을 한다 (model_catalog.py)
 ```
 
 - 의존은 안쪽으로만 향한다: runtime → infra → core, runtime → core. core 는 infra·runtime 과 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를, infra 는 runtime 을 import 하지 않는다. runtime 은 DB 기술 패키지(sqlalchemy·psycopg·redis·boto3)를 직접 import 하지 않는다. 각 패키지의 `test_package.py` 가 이것을 확인한다.
 - 테이블 모델과 Pydantic 모델을 한 클래스로 합치지 않는다.
 - 이름: 기술을 감싸는 접속 계층(providers·services)은 기술 이름으로, core 계약을 채우는 구현은 역할 이름으로 짓는다(예: `ModelCatalogRepository`). 저장 기술은 구현 이름에 드러내지 않는다.
-- 기능은 서비스 함수에 둔다. CLI·REST 는 그 함수를 부르기만 하는 얇은 진입점이고, 웹 프레임워크는 REST 진입 계층에만 둔다.
+- 입구(cli·rest)에는 번역만 둔다 — 인자·본문을 받아 계약이나 서비스를 부르고, 결과를 출력·응답(종료 코드·HTTP 상태)으로 바꾸는 데까지다. 둘 이상의 계약 호출을 엮는 순서는 서비스(core 개념의 `service.py`)에 두고, cli·rest 는 그 서비스를 부르기만 한다. 같은 로직을 두 입구에 각각 쓰지 않는다.
+- 웹 프레임워크(fastapi·uvicorn)는 runtime 의 `rest/` 에만 둔다. runtime 의 `test_package.py` 가 이것을 확인한다.
 - 프로바이더는 runtime 의 `container.py` 만 만든다. 진입점은 container 에서 받고, 서비스는 생성자로 받는다.
 - 새 테이블 정의(`tables/<테이블>.py`)는 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 
@@ -168,5 +177,6 @@ cd agent-builder-core; ..\.venv\Scripts\python -m pytest; cd ..
 cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; ..\.venv\Scripts\python -m pytest; cd ..
 cd agent-builder-runtime; ..\.venv\Scripts\python -m pytest; cd ..
 .venv\Scripts\python -m agent_builder_runtime --help
+.venv\Scripts\python -m agent_builder_runtime --profile rest
 docker compose run --rm --build app
 ```

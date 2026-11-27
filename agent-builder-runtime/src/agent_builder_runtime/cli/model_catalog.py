@@ -1,12 +1,12 @@
 """모델 논리 이름의 대응표를 명령줄에서 보고 고친다.
 
-python -m agent_builder_runtime model-alias list
-python -m agent_builder_runtime model-alias show fast
-python -m agent_builder_runtime model-alias set fast --provider openrouter \\
+python -m agent_builder_runtime model-catalog list
+python -m agent_builder_runtime model-catalog show fast
+python -m agent_builder_runtime model-catalog set fast --provider openrouter \\
     --model <공급자 쪽 이름> --inputs text,image
-python -m agent_builder_runtime model-alias disable fast
-python -m agent_builder_runtime model-alias enable fast
-python -m agent_builder_runtime model-alias delete fast
+python -m agent_builder_runtime model-catalog disable fast
+python -m agent_builder_runtime model-catalog enable fast
+python -m agent_builder_runtime model-catalog delete fast
 
 여기는 core 의 계약(ModelCatalog)만 보고 부른다.
 고칠 때 캐시를 지우는 일 등은 그 계약을 채운 구현(infra)이 한다.
@@ -30,7 +30,7 @@ EXIT_INVALID = 2
 
 
 def register(groups: argparse._SubParsersAction) -> None:
-    parser = groups.add_parser("model-alias", help="모델 논리 이름의 대응표")
+    parser = groups.add_parser("model-catalog", help="모델 논리 이름의 대응표")
     parser.set_defaults(run=run)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list", help="전부 보기")

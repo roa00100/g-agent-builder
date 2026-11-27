@@ -18,21 +18,21 @@ def name():
 
 
 def test_set_show_disable_delete(name, capsys):
-    command = ["model-alias", "set", name, "--provider", "openrouter", "--model", "m"]
+    command = ["model-catalog", "set", name, "--provider", "openrouter", "--model", "m"]
     assert main([*command, "--inputs", "text,file"]) == 0
-    assert main(["model-alias", "show", name]) == 0
+    assert main(["model-catalog", "show", name]) == 0
     assert '"provider_model": "m"' in capsys.readouterr().out
 
-    assert main(["model-alias", "disable", name]) == 0
+    assert main(["model-catalog", "disable", name]) == 0
     assert "꺼짐" in capsys.readouterr().out
 
-    assert main(["model-alias", "delete", name]) == 0
-    assert main(["model-alias", "show", name]) == 1
+    assert main(["model-catalog", "delete", name]) == 0
+    assert main(["model-catalog", "show", name]) == 1
     assert "대응표에 없는" in capsys.readouterr().err
 
 
 def test_rejects_bad_inputs(name):
-    command = ["model-alias", "set", name, "--provider", "p", "--model", "m"]
+    command = ["model-catalog", "set", name, "--provider", "p", "--model", "m"]
 
     assert main([*command, "--inputs", "video"]) == 2
 

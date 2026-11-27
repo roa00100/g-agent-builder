@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
 
-def _find_env_file() -> Path | None:
+def find_env_file() -> Path | None:
     """실행한 폴더에서 위로 올라가며 처음 만나는 .env.
 
     .env 는 저장소 루트에 하나 있다(docker compose 도 그것을 읽는다).
@@ -27,7 +27,7 @@ def _find_env_file() -> Path | None:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # 같은 이름의 환경변수가 있으면 .env 보다 그쪽이 이긴다.
-        env_file=_find_env_file(),
+        env_file=find_env_file(),
         env_file_encoding="utf-8",
         # .env 에 앱이 모르는 키가 있어도 오류로 보지 않고 넘긴다.
         extra="ignore",

@@ -54,8 +54,17 @@
 | 항목 | 상태 |
 |---|---|
 | 결정 | 구현 언어는 Python, 코드는 `agent-builder-core/` 에 둔다 (2026-11-27 사용자 지시) |
-| 미정 | Q1~Q5, Q7 (대표 workflow, AI 보조 단계, 두 번째 workflow, 모델, 자료 위치, 상태 저장소) |
-| 진행 단계 | W0 이전 — 프로젝트 구성만 있음. 패키지는 비어 있다 |
+| 결정 | DB 는 PostgreSQL (2026-11-27 사용자 지시) |
+| 결정 | LangGraph, pgvector, 웹 프레임워크는 쓰지 않는다 (2026-11-27 사용자 지시) |
+| 결정 | 모델은 프로바이더 형태로 공급자를 고른다. 첫 공급자는 OpenRouter (2026-11-27 사용자 지시) |
+| 제안 — 설정됨, 사용자 확인 전 | 로컬 DB 는 docker compose, DB 접근은 SQLAlchemy 2 + psycopg 3(동기), 스키마 변경은 Alembic, 설정은 pydantic-settings + `.env`, 데이터 모양은 Pydantic v2 |
+| 미정 | Q1~Q3, Q5 (대표 workflow, AI 보조 단계, 두 번째 workflow, 자료 위치) |
+| 결정 | 사용자가 직접 쓰는 것은 기본 구조 코드다. 밑바탕까지 전부 직접 쓰지 않으며, 쓸 수 있는 오픈소스는 적극 검토한다 (2026-11-27 사용자 지시) |
+| 결정 | OpenRouter 는 `openai` SDK 로 부른다 — 주소만 바꿔 쓴다 (2026-11-27 사용자가 고름) |
+| 미정 | 프로바이더 인터페이스의 모양 (사용자가 쓰는 구조 코드) |
+| 결정 | 패키지는 개념별로 나누고, 각 개념 안에서 층(models·schemas·service)을 나눈다 (2026-11-27 사용자가 고름) |
+| 결정 | 개념은 `workflow`(정의), `run`(실행 상태), `assist`(AI 보조 단계) 셋으로 시작한다 (2026-11-27 사용자가 고름) |
+| 진행 단계 | W0 이전 — 설정 모듈과 DB 연결 모듈(사용자 지시로 에이전트가 작성), 빈 개념 패키지 셋만 있다. 테이블·마이그레이션은 0개, 모델을 부르는 코드도 없다 |
 
 ## 6. 저장소 구성
 
@@ -67,19 +76,39 @@ AGENTS.md               이 문서
 agent-builder-core/     Python 프로젝트
   pyproject.toml            의존성, ruff·pytest 설정
   Dockerfile · .dockerignore
+  docker-compose.yml        로컬 PostgreSQL
+  .env.example              환경변수 예시 — 복사해서 .env 를 만든다
+  alembic.ini · migrations/ 스키마 변경 (마이그레이션 0개)
   .python-version
-  src/agent_builder_core/   패키지 (비어 있음)
+  src/agent_builder_core/   패키지 — settings.py(설정), db.py(DB 연결)
+    workflow/ · run/ · assist/  개념 패키지 (비어 있음)
   tests/
 ```
+
+패키지 배치 규칙 (결정).
+
+```
+src/agent_builder_core/
+  settings.py · db.py      모든 개념이 같이 쓰는 기반
+  <개념>/
+    models.py               SQLAlchemy 테이블 모델 (Base 상속)
+    schemas.py              Pydantic 모델 — 주고받는 데이터의 모양
+    service.py              업무 로직. 세션은 인자로 받는다
+```
+
+- 테이블 모델과 Pydantic 모델을 한 클래스로 합치지 않는다.
+- 새 개념의 `models.py` 는 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 
 명령은 `agent-builder-core/` 에서 실행한다.
 
 ```powershell
 py -3.13 -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"
+Copy-Item .env.example .env
+docker compose up -d --wait
+.venv\Scripts\alembic upgrade head
 .venv\Scripts\ruff check .
 .venv\Scripts\ruff format --check .
 .venv\Scripts\python -m pytest
-docker build -t agent-builder-core:dev .
-docker run --rm agent-builder-core:dev
+docker compose run --rm --build app
 ```

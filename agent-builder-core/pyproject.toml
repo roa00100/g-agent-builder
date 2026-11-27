@@ -9,8 +9,16 @@ description = "사용자가 자기만의 에이전트를 조립해 workflow 의 
 readme = "README.md"
 # 개발 PC 에 설치된 버전이 3.13 이다.
 requires-python = ">=3.13"
-# 런타임 의존성은 구조(Q4·Q7)가 정해진 뒤에 더한다.
-dependencies = []
+dependencies = [
+    # 모델 공급자 호출. OpenRouter 는 OpenAI 호환 API 라서 주소만 바꿔 쓴다.
+    # 하한은 OpenRouter 연결을 실제로 확인한 버전이다.
+    "openai>=3.60",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.14",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.8"]

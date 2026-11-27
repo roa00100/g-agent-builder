@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from agent_builder_core.contracts.model import UnknownProvider
-from agent_builder_runtime.model_providers import ProviderConnections
+from agent_builder_runtime.model_adapters import ProviderConnections
 from agent_builder_runtime.repositories import MissingApiKey, ProviderProfile
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)

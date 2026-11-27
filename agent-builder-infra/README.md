@@ -10,7 +10,7 @@ core 의 정의(예: `InputKind`)는 가져다 쓴다. infra 의 값을 계약�
 | `services/db.py` | `DbService` — `session_scope()`(트랜잭션), `cursor()`(psycopg 커서), `fetch_all`·`fetch_one`·`fetch_value`·`execute` |
 | `services/redis.py` | `RedisService` — 문자열·JSON·Pydantic 모델·해시·카운터·키. 값을 쓰는 메서드는 `ttl` 이 필수다 |
 | `services/object_storage.py` | `ObjectStorageService` — 버킷 하나 안에서 키로 `put_bytes`·`get_bytes`·`head`·`exists`·`delete`·`list_keys`. 없는 키는 `None`, 그 밖의 실패는 예외. S3 API(boto3)로만 말해 SeaweedFS 를 다른 S3 호환 스토리지로 바꿔도 그대로다 |
-| `providers/openrouter.py` | `OpenRouterProvider` — OpenRouter 연결점. openai SDK 클라이언트를 OpenRouter 주소로 두고, `chat(payload)` 로 한 번 보내 응답 본문(dict)을 받는다. SDK 오류는 `OpenRouterCallError`(timeout·connection·http, 상태 코드·본문)로 넘긴다. 실패를 무엇으로 볼지는 runtime 이 정한다. SDK 의 자동 재시도는 끈다 |
+| `clients/openrouter.py` | `OpenRouterClient` — OpenRouter 연결점. openai SDK 클라이언트를 OpenRouter 주소로 두고, `chat(payload)` 로 한 번 보내 응답 본문(dict)을 받는다. SDK 오류는 `OpenRouterCallError`(timeout·connection·http, 상태 코드·본문)로 넘긴다. 실패를 무엇으로 볼지는 runtime 이 정한다. SDK 의 자동 재시도는 끈다 |
 | `services/cipher.py` | `FernetCipher` — 비밀 값(공급자 API 키 등)을 마스터 키(`SECRET_ENCRYPTION_KEY`)로 암호화·복호화. 키가 다르거나 암호문이 바뀌면 `CipherError` |
 | `orm.py` | 테이블 모델의 부모 `Base` |
 | `crud.py` | ORM 모델 공통 `find_by_id`·`find_all`·`count`·`create`·`update`·`delete`. 세션은 인자로 받는다 |

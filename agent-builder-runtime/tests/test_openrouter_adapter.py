@@ -16,12 +16,12 @@ from agent_builder_core.contracts.model import (
     ModelSpec,
     UnknownProvider,
 )
-from agent_builder_infra.providers import OpenRouterCallError
-from agent_builder_runtime.model_providers import (
-    OpenRouterModelProvider,
+from agent_builder_infra.clients import OpenRouterCallError
+from agent_builder_runtime.model_adapters import (
+    OpenRouterAdapter,
     ProviderConnection,
 )
-from agent_builder_runtime.model_providers.openrouter import kind_for_status
+from agent_builder_runtime.model_adapters.openrouter import kind_for_status
 from agent_builder_runtime.repositories import MissingApiKey
 
 PNG = base64.b64encode(b"\x89PNG....").decode()
@@ -90,12 +90,12 @@ class FakeConnections:
 
 
 def run(req: ModelRequest, connection: FakeConnection, spec: ModelSpec = SPEC):
-    return OpenRouterModelProvider(FakeConnections(connection)).complete(req, spec)
+    return OpenRouterAdapter(FakeConnections(connection)).complete(req, spec)
 
 
 def test_fills_contract():
     assert isinstance(
-        OpenRouterModelProvider(FakeConnections(FakeConnection())), ModelProvider
+        OpenRouterAdapter(FakeConnections(FakeConnection())), ModelProvider
     )
 
 
@@ -111,7 +111,7 @@ def test_uses_profile_timeout_unless_model_overrides():
 def test_asks_for_its_own_provider_name():
     connections = FakeConnections(FakeConnection(body()))
 
-    OpenRouterModelProvider(connections).complete(request(), SPEC)
+    OpenRouterAdapter(connections).complete(request(), SPEC)
 
     assert connections.asked == ["openrouter"]
 
@@ -121,7 +121,7 @@ def test_missing_api_key_is_auth_failure():
     connections = FakeConnections(None, error=MissingApiKey("키 없음"))
 
     with pytest.raises(ModelCallFailed) as raised:
-        OpenRouterModelProvider(connections).complete(req, SPEC)
+        OpenRouterAdapter(connections).complete(req, SPEC)
 
     assert raised.value.kind == "auth"
     assert raised.value.retryable is False
@@ -131,7 +131,7 @@ def test_unknown_or_disabled_provider_passes_through():
     connections = FakeConnections(None, error=UnknownProvider("꺼 둔 공급자"))
 
     with pytest.raises(UnknownProvider):
-        OpenRouterModelProvider(connections).complete(request(), SPEC)
+        OpenRouterAdapter(connections).complete(request(), SPEC)
 
 
 # --- 요청 ---

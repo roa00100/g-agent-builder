@@ -11,8 +11,8 @@ get_db().fetch_all("select ...")
 from functools import lru_cache
 
 from agent_builder_core.model import ModelGateway
+from agent_builder_infra.clients.openrouter import OpenRouterClient
 from agent_builder_infra.providers.object_storage import ObjectStorageProvider
-from agent_builder_infra.providers.openrouter import OpenRouterProvider
 from agent_builder_infra.providers.postgres import PostgresProvider
 from agent_builder_infra.providers.redis import RedisProvider
 from agent_builder_infra.services.cipher import FernetCipher
@@ -20,8 +20,8 @@ from agent_builder_infra.services.db import DbService
 from agent_builder_infra.services.object_storage import ObjectStorageService
 from agent_builder_infra.services.redis import RedisService
 from agent_builder_infra.settings import get_settings
-from agent_builder_runtime.model_providers import (
-    OpenRouterModelProvider,
+from agent_builder_runtime.model_adapters import (
+    OpenRouterAdapter,
     ProviderConnections,
 )
 from agent_builder_runtime.repositories import (
@@ -91,11 +91,11 @@ def get_provider_profiles() -> ProviderProfileRepository:
 def get_provider_connections() -> ProviderConnections:
     """공급자 연결. 프로필이 바뀌면 연결을 새로 만든다.
 
-    지금 공급자는 OpenRouter 하나라, 연결점도 OpenRouterProvider 하나로 만든다.
+    지금 공급자는 OpenRouter 하나라, 연결점도 OpenRouterClient 하나로 만든다.
     """
     return ProviderConnections(
         get_provider_profiles(),
-        connect=lambda base_url, api_key: OpenRouterProvider(
+        connect=lambda base_url, api_key: OpenRouterClient(
             api_key=api_key, base_url=base_url
         ),
     )
@@ -107,7 +107,7 @@ def get_model_gateway() -> ModelGateway:
 
     공급자는 이름으로 고른다 — 대응표의 ModelSpec.provider 와 같은 값.
     """
-    openrouter = OpenRouterModelProvider(get_provider_connections())
+    openrouter = OpenRouterAdapter(get_provider_connections())
     return ModelGateway(get_model_catalog(), {openrouter.name: openrouter})
 
 

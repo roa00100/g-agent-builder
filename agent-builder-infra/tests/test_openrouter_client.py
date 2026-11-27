@@ -1,4 +1,4 @@
-"""OpenRouter 연결점 — 보내고 받기와 SDK 오류 넘기기.
+"""OpenRouter 클라이언트 — 보내고 받기와 SDK 오류 넘기기.
 
 네트워크 없이 가짜 전송(httpx.MockTransport)으로 돈다.
 실패를 계약의 말로 해석하는 일은 runtime 의 테스트가 본다.
@@ -7,7 +7,7 @@
 import httpx
 import pytest
 
-from agent_builder_infra.providers import OpenRouterCallError, OpenRouterProvider
+from agent_builder_infra.clients import OpenRouterCallError, OpenRouterClient
 
 PAYLOAD = {"model": "vendor/model-a", "messages": [{"role": "user", "content": "x"}]}
 
@@ -33,8 +33,8 @@ OK_BODY = {
 }
 
 
-def provider(handler) -> OpenRouterProvider:
-    return OpenRouterProvider(
+def client(handler) -> OpenRouterClient:
+    return OpenRouterClient(
         api_key="test-key",
         base_url="http://openrouter.test/api/v1",
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
@@ -49,7 +49,7 @@ def test_chat_returns_body_with_fields_sdk_does_not_know():
         seen["path"] = request.url.path
         return httpx.Response(200, json=OK_BODY)
 
-    body = provider(handler).chat(PAYLOAD, timeout_seconds=5)
+    body = client(handler).chat(PAYLOAD, timeout_seconds=5)
 
     assert body["choices"][0]["message"]["content"] == "답"
     # SDK 타입에 없는 필드도 남는다 — 비용과 원래 종료 사유를 읽어야 한다.
@@ -66,8 +66,7 @@ def test_error_body_with_200_is_returned_as_is():
         return httpx.Response(200, json=error_body)
 
     assert (
-        provider(handler).chat(PAYLOAD, timeout_seconds=5)["error"]
-        == error_body["error"]
+        client(handler).chat(PAYLOAD, timeout_seconds=5)["error"] == error_body["error"]
     )
 
 
@@ -81,7 +80,7 @@ def test_http_error_keeps_status_and_body_and_sends_once(status):
         return httpx.Response(status, json=error_body)
 
     with pytest.raises(OpenRouterCallError) as raised:
-        provider(handler).chat(PAYLOAD, timeout_seconds=5)
+        client(handler).chat(PAYLOAD, timeout_seconds=5)
 
     assert raised.value.reason == "http"
     assert raised.value.status_code == status
@@ -95,7 +94,7 @@ def test_timeout():
         raise httpx.ReadTimeout("느림", request=request)
 
     with pytest.raises(OpenRouterCallError) as raised:
-        provider(handler).chat(PAYLOAD, timeout_seconds=5)
+        client(handler).chat(PAYLOAD, timeout_seconds=5)
 
     assert raised.value.reason == "timeout"
     assert raised.value.status_code is None
@@ -106,6 +105,6 @@ def test_connection_failure():
         raise httpx.ConnectError("못 붙음", request=request)
 
     with pytest.raises(OpenRouterCallError) as raised:
-        provider(handler).chat(PAYLOAD, timeout_seconds=5)
+        client(handler).chat(PAYLOAD, timeout_seconds=5)
 
     assert raised.value.reason == "connection"

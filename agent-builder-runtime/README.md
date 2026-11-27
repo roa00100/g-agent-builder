@@ -9,8 +9,8 @@
 |---|---|
 | `repositories/` | core 계약의 구현. `ModelCatalogRepository` — 테이블 `model_alias`(Postgres)를 기준으로 Redis 에 5분 캐싱하고, 고칠 때 커밋 뒤 캐시를 지운다. SQLAlchemy 를 직접 쓰지 않고 infra 의 `DbService`·`crud`·`RedisService` 만 쓴다 |
 | `repositories/provider_profile.py` | `ProviderProfileRepository` — 공급자 프로필(주소·API 키·기본 대기 시간·켜짐). Postgres 기준, Redis 5분 캐시. 키는 DB·캐시 어디에도 평문으로 두지 않고, 보낼 때만 푼다 |
-| `model_providers/connections.py` | `ProviderConnections` — 프로필로 연결점을 만들고, 프로필이 바뀌면 옛 연결을 닫고 새로 만든다 |
-| `model_providers/` | core 의 `ModelProvider` 구현. `OpenRouterModelProvider` — `ModelRequest` 를 OpenRouter 본문으로, 응답 본문을 `ModelResponse` 로 바꾼다. 연결점의 오류(`OpenRouterCallError`)와 HTTP 200 본문 속 오류를 OpenRouter 문서 기준 표(`kind_for_status`)로 `ModelCallFailed` 에 맞춘다. 파일을 주소로 보내는 것은 OpenRouter 문서에 없어 거절 |
+| `model_adapters/connections.py` | `ProviderConnections` — 프로필로 연결점을 만들고, 프로필이 바뀌면 옛 연결을 닫고 새로 만든다 |
+| `model_adapters/openrouter/` | core 의 `ModelProvider` 구현. 흐름은 `provider.py`, 요청 바꾸기 `request.py`, 응답 바꾸기 `response.py`, 실패 해석 `errors.py`. `OpenRouterAdapter` — `ModelRequest` 를 OpenRouter 본문으로, 응답 본문을 `ModelResponse` 로 바꾼다. 연결점의 오류(`OpenRouterCallError`)와 HTTP 200 본문 속 오류를 OpenRouter 문서 기준 표(`kind_for_status`)로 `ModelCallFailed` 에 맞춘다. 파일을 주소로 보내는 것은 OpenRouter 문서에 없어 거절 |
 | `container.py` | 조립 — `get_db()`, `get_redis()`, `get_object_storage()`, `get_model_catalog()`, `get_provider_profiles()`, `get_provider_connections()`, `get_model_gateway()` 가 한 번씩 만들어 준다. 공급자 키는 보낼 때 프로필에서 읽고, 풀려면 `SECRET_ENCRYPTION_KEY` 가 있어야 한다. 끝낼 때 `close_all()` |
 | `settings.py` | 실행 설정 — `RUNTIME_PROFILE`(cli·rest, 기본 cli), `REST_HOST`·`REST_PORT`(기본 127.0.0.1:8000) |
 | `__main__.py` | 입구 — 프로필로 모드만 고른다. `--profile` 인자가 환경변수 `RUNTIME_PROFILE` 을 이긴다 |

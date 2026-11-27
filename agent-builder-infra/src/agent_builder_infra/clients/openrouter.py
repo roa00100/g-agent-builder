@@ -2,7 +2,7 @@
 
 openai SDK 클라이언트를 OpenRouter 주소로 두고, 보내고 받는다.
 여기는 라이브러리를 부르는 데까지다. 본문을 어떻게 만들고 읽을지,
-실패를 무엇으로 볼지는 runtime 의 OpenRouterModelProvider 가 정한다.
+실패를 무엇으로 볼지는 runtime 의 OpenRouterAdapter 가 정한다.
 그래서 core 의 계약 말(FailureKind 등)을 쓰지 않는다.
 """
 
@@ -39,7 +39,7 @@ class OpenRouterCallError(Exception):
         self.body = body
 
 
-class OpenRouterProvider:
+class OpenRouterClient:
     """클라이언트를 만드는 것만으로는 OpenRouter 에 붙지 않는다."""
 
     def __init__(

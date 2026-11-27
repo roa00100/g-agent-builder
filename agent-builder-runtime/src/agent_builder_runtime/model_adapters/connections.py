@@ -14,7 +14,7 @@ from agent_builder_runtime.repositories.provider_profile import ProviderProfile
 
 
 class Connection(Protocol):
-    """infra 의 연결점(예: OpenRouterProvider)이 채운다."""
+    """infra 의 연결점(예: OpenRouterClient)이 채운다."""
 
     def chat(
         self, payload: dict[str, Any], timeout_seconds: float

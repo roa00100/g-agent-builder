@@ -1,6 +1,6 @@
 """모델 공급자 계약 — 모델 요청을 공급자에게 보내고 응답을 받는다.
 
-구현은 공급자마다 하나 (예: runtime 의 OpenRouterModelProvider).
+구현은 공급자마다 하나 (예: runtime 의 OpenRouterAdapter).
 어느 공급자를 쓸지는 모델 대응표(ModelSpec.provider)가 정하고,
 고르는 일은 ModelGateway 가 한다.
 """

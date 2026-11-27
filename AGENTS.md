@@ -95,10 +95,12 @@
 | 결정 | 이름 규칙: 기술을 감싸는 접속 계층은 기술 이름, core 계약을 채우는 구현은 역할 이름(`ModelCatalogRepository`·`OpenRouterAdapter` 등) (2026-11-27 사용자가 고름). 접속 계층은 다시 둘로 나눈다 — 저장소 접속(Postgres·Redis·오브젝트 스토리지)은 `~Provider`(infra `providers/`), 외부 API 접속(OpenRouter 등 모델 공급자)은 `~Client`(infra `clients/`) (2026-11-27 사용자가 고름 — 처음에는 OpenRouter 접속도 `OpenRouterProvider` 였다) |
 | 결정 | core 계약 `ModelProvider` 를 공급자 모양과 맞바꾸는 runtime 구현은 Adapter 로 부른다 — `model_adapters/openrouter/`, `OpenRouterAdapter`. infra 의 접속 계층 이름과 낱말이 겹치지 않게 하려는 것이다 (2026-11-27 사용자가 고름). infra 의 OpenRouter 접속은 이어서 `OpenRouterClient` 로 바꿨다 — 위 이름 규칙 참고 |
 | 결정 | runtime 의 실행 모드는 `__main__` 에서 프로필(cli / rest)로 고른다 (2026-11-27 사용자 지시) |
+| 결정 | 관측 — 추적은 OpenTelemetry(업체 중립, 나중에 Datadog 으로도 보냄), 구조적 로그는 structlog. 로그 단계는 TRACE(5)·DEBUG·INFO·WARNING·ERROR — INFO 흐름 요약, DEBUG 갈림길과 모양, TRACE 오간 데이터 전체(기본 꺼짐). 비밀(API 키·Authorization·암호문)은 단계와 상관없이 지운다. core 에는 추적 코드를 넣지 않고 runtime 이 계약 구현과 Gateway 를 span 으로 감싼다. 로컬 추적 화면은 Jaeger(compose 선택 서비스) (2026-11-27 사용자가 고름) |
+| 제안 — 설정됨, 사용자 확인 전 | 관측의 구현 모양. SQL span 은 공식 계측(opentelemetry-instrumentation-sqlalchemy 0.66b2) 대신 SQLAlchemy 이벤트로 직접 건다 — 공식 계측이 SQLAlchemy 2.1 을 받지 않고, 켜면 asyncio(greenlet)까지 불러와서. HTTP 는 `httpx2` 계측 — openai SDK 3.x 가 httpx2 로 보낸다. span 에는 넘긴 값(SQL 값·Redis 값·HTTP 헤더)과 오간 문장을 넣지 않고, 문장은 TRACE 로그에만 둔다. 계약 구현은 container 에서 `traced()` 로 메서드를 바꿔 끼워 감싼다(클래스가 그대로라 계약 isinstance 가 맞는다). Gateway 는 runtime `trace_gateway()` 가 감싸 INFO `model.call.done` 한 줄을 남긴다 |
 | 결정 | REST 진입 계층의 웹 프레임워크는 FastAPI 다. 자리는 runtime 의 `rest/` 다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
-| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
+| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 테이블은 `model_alias`(모델 논리 이름 대응표)·`model_provider`(공급자 프로필) 둘이다. 모델 호출 입구(`model call`·`POST /model/call`)와 관측(로그·추적, 로컬 Jaeger)이 있다. 호출 기록(비용)은 아직 없다 |
 
 ## 6. 저장소 구성
 
@@ -109,7 +111,7 @@ AGENTS.md               이 문서
 .github/workflows/ci.yml    push·PR 때 ruff, core 테스트, 마이그레이션, infra·runtime 테스트
 ruff.toml               저장소 전체의 ruff 설정
 .python-version         Python 버전 (CI 가 읽는다)
-docker-compose.yml      로컬 PostgreSQL · Redis · SeaweedFS(오브젝트 스토리지), 컨테이너 테스트용 app
+docker-compose.yml      로컬 PostgreSQL · Redis · SeaweedFS(오브젝트 스토리지), 컨테이너 테스트용 app, 선택 서비스 Jaeger(추적 화면, profile observability)
 .env.example            환경변수 예시 — 복사해서 루트에 .env 를 만든다
 .dockerignore           도커 빌드 맥락은 저장소 루트다
 .venv/                  가상환경 하나에 core·infra·runtime 을 같이 설치한다
@@ -150,6 +152,10 @@ agent_builder_infra/                    기술 구성
     redis.py                RedisService: 문자열·JSON·모델·해시·카운터·키 (쓰기는 ttl 필수)
     object_storage.py       ObjectStorageService: 키로 바이트 넣기·꺼내기·정보·목록·삭제 (S3 API)
     cipher.py               FernetCipher: 비밀 값 암호화·복호화 (마스터 키 SECRET_ENCRYPTION_KEY)
+  observability/            관측 — 입구가 맨 먼저 켠다
+    logging.py              structlog 설정·get_logger (TRACE 단계, trace_id 붙이기, 비밀 지우기)
+    tracing.py              OpenTelemetry 설정(OTLP 로 보내기는 주소가 있을 때만)·자동 계측(Redis·httpx2·botocore)·span·traced
+    sql.py                  SQL 실행마다 span (SQLAlchemy 이벤트)
   orm.py                    테이블 모델의 부모 Base
   crud.py                   ORM 공통 CRUD — 세션만 받는다
   tables/                   테이블 정의 (SQLAlchemy ORM 매핑, Base 상속) — 테이블마다 파일 하나. 실제 DDL 은 migrations/
@@ -163,14 +169,15 @@ agent_builder_runtime/                  계약 구현·조립·진입점
   model_adapters/          core 의 ModelProvider 구현 — 공급자마다 하나. openai SDK 를 직접 쓰지 않는다
     connections.py          ProviderConnections — 프로필로 연결점을 만들고, 프로필이 바뀌면(updated_at) 새로 만든다
     openrouter/             OpenRouterAdapter — adapter.py(흐름: 연결 받기·대기 시간·보내기·시간 재기) · request.py(요청 → 본문) · response.py(본문 → 응답) · errors.py(오류 → 실패 종류)
-  container.py              조립 — infra 의 프로바이더·서비스와 runtime 의 구현을 한 번씩 만든다 (get_model_catalog·get_model_gateway 등)
+  container.py              조립 — infra 의 프로바이더·서비스와 runtime 의 구현을 한 번씩 만든다 (get_model_catalog·get_model_gateway 등). 계약 구현은 traced() 로 감싸 내준다
+  observability.py          setup_observability()(입구가 맨 먼저 부른다)·trace_gateway()(호출 하나 = span 하나 + INFO 한 줄)
   settings.py               실행 설정 — RUNTIME_PROFILE(cli·rest, 기본 cli), REST_HOST·REST_PORT
   __main__.py               입구 — 프로필(--profile 또는 RUNTIME_PROFILE)로 모드만 고른다
   cli/                      cli 모드 — 명령 하나 실행하고 끝. __init__.run() 이 묶음 파서를 조립
-    <묶음>.py               묶음마다 register()·run(). 계약을 부르기만 한다 (model_catalog.py · model_provider.py)
+    <묶음>.py               묶음마다 register()·run(). 계약을 부르기만 한다 (model.py · model_catalog.py · model_provider.py)
   rest/                     rest 모드 — FastAPI 서버. 웹 프레임워크는 여기에만
-    __init__.py             create_app()·run() — /health 와 묶음별 라우터
-    <묶음>.py               묶음마다 APIRouter. cli 의 같은 묶음과 같은 일을 한다 (model_catalog.py · model_provider.py)
+    __init__.py             create_app()·run() — /health 와 묶음별 라우터, FastAPI 계측(요청 하나 = 뿌리 span)
+    <묶음>.py               묶음마다 APIRouter. cli 의 같은 묶음과 같은 일을 한다 (model.py · model_catalog.py · model_provider.py)
 ```
 
 - 의존은 안쪽으로만 향한다: runtime → infra → core, runtime → core. core 는 infra·runtime 과 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를, infra 는 runtime 을 import 하지 않는다. runtime 은 기술 패키지(sqlalchemy·psycopg·redis·boto3·openai)를 직접 import 하지 않는다. 각 패키지의 `test_package.py` 가 이것을 확인한다.
@@ -178,6 +185,8 @@ agent_builder_runtime/                  계약 구현·조립·진입점
 - 이름: 기술을 감싸는 접속 계층(providers·services)은 기술 이름으로, core 계약을 채우는 구현은 역할 이름으로 짓는다(예: `ModelCatalogRepository`). 저장 기술은 구현 이름에 드러내지 않는다.
 - 입구(cli·rest)에는 번역만 둔다 — 인자·본문을 받아 계약이나 서비스를 부르고, 결과를 출력·응답(종료 코드·HTTP 상태)으로 바꾸는 데까지다. 둘 이상의 계약 호출을 엮는 순서는 서비스(core 개념의 `service.py`)에 두고, cli·rest 는 그 서비스를 부르기만 한다. 같은 로직을 두 입구에 각각 쓰지 않는다.
 - 웹 프레임워크(fastapi·uvicorn)는 runtime 의 `rest/` 에만 둔다. runtime 의 `test_package.py` 가 이것을 확인한다.
+- 관측 기술(opentelemetry·structlog)은 core 에 두지 않는다. runtime 은 infra 의 `observability` 를 거쳐 쓰고, 예외는 `rest/` 의 FastAPI 계측 하나다. 각 `test_package.py` 가 확인한다.
+- span 에는 모양과 숫자만, 오간 문장은 TRACE 로그에만 둔다. 비밀은 어느 단계에서도 남기지 않는다.
 - 프로바이더는 runtime 의 `container.py` 만 만든다. 진입점은 container 에서 받고, 서비스는 생성자로 받는다.
 - 새 테이블 정의(`tables/<테이블>.py`)는 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 
@@ -188,6 +197,7 @@ py -3.13 -m venv .venv
 .venv\Scripts\python -m pip install -e ".\agent-builder-core[dev]" -e ".\agent-builder-infra[dev]" -e ".\agent-builder-runtime[dev]"
 Copy-Item .env.example .env
 docker compose up -d --wait
+docker compose --profile observability up -d --wait jaeger   # 추적 화면이 필요할 때만 (http://127.0.0.1:16686)
 .venv\Scripts\ruff check .
 .venv\Scripts\ruff format --check .
 cd agent-builder-core; ..\.venv\Scripts\python -m pytest; cd ..

@@ -8,6 +8,8 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
+from agent_builder_infra.observability.logging import LogFormat, LogLevel
+
 
 def find_env_file() -> Path | None:
     """실행한 폴더에서 위로 올라가며 처음 만나는 .env.
@@ -68,6 +70,16 @@ class Settings(BaseSettings):
     # 비밀을 다루지 않는 명령(마이그레이션 등)은 이 키 없이 돌아야 하므로 없어도 된다.
     # SecretStr 이라 로그나 출력에 값이 찍히지 않는다.
     secret_encryption_key: SecretStr | None = None
+
+    # 관측. 로그 단계 — TRACE 는 오간 데이터 전체가 남으니 필요할 때만 켠다.
+    log_level: LogLevel = "INFO"
+    # console 은 사람이 읽기 쉬운 줄, json 은 수집기(Datadog 등)가 읽는 줄.
+    log_format: LogFormat = "console"
+    # 추적에서 이 프로그램을 부르는 이름.
+    otel_service_name: str = "agent-builder"
+    # 추적을 보낼 OTLP 주소 (예: 로컬 Jaeger http://127.0.0.1:4318).
+    # 비우면 보내지 않는다.
+    otel_exporter_otlp_endpoint: str | None = None
 
     @property
     def database_url(self) -> URL:

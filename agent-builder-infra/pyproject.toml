@@ -27,6 +27,14 @@ dependencies = [
     "boto3>=1.44",
     # 공급자 API 키를 DB·캐시에 암호문으로 둔다(Fernet). 하한은 설치해 확인한 버전이다.
     "cryptography>=50.0",
+    # 관측 — 구조적 로그와 추적(OpenTelemetry). 하한은 설치해 확인한 버전이다.
+    "structlog>=26.1",
+    "opentelemetry-sdk>=1.45",
+    "opentelemetry-exporter-otlp-proto-http>=1.45",
+    # 자동 계측. 계측 패키지는 아직 베타(0.xxbN)로만 나온다.
+    "opentelemetry-instrumentation-redis>=0.66b2",
+    "opentelemetry-instrumentation-httpx>=0.66b2",
+    "opentelemetry-instrumentation-botocore>=0.66b2",
 ]
 
 [project.optional-dependencies]

@@ -29,6 +29,22 @@ docker compose up -d --wait
 
 Redis 는 AOF 로 디스크에 써서 재시작해도 데이터가 남는다. SeaweedFS 는 `STORAGE_ACCESS_KEY`·`STORAGE_SECRET_KEY` 로 인증을 요구하고, 시작할 때 `STORAGE_BUCKET` 버킷을 만든다. 없는 버킷에 쓰면 새로 만들지 않고 오류를 낸다. 끌 때는 `docker compose down`, 데이터까지 지우려면 `docker compose down -v`.
 
+## 로그와 추적
+
+`observability/` 가 맡는다. runtime 의 입구가 맨 먼저 켠다.
+
+- 로그 단계는 `LOG_LEVEL` — TRACE(오간 데이터 전체, 기본 꺼짐) · DEBUG(갈림길) · INFO(흐름 요약, 기본) · WARNING · ERROR. 형식은 `LOG_FORMAT` — console(기본) 또는 json. 로그는 stderr 로 나간다.
+- 키 이름에 api_key·authorization·secret·password·_enc 가 들어간 값은 어느 단계에서도 `[REDACTED]` 로 바꾼다.
+- span 안에서 남긴 줄에는 trace_id·span_id 가 붙는다.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` 를 주면 추적을 OTLP HTTP 로 보낸다. 로컬 화면은 Jaeger:
+
+```powershell
+docker compose --profile observability up -d --wait jaeger
+```
+
+`.env` 에 `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` 을 넣고, http://127.0.0.1:16686 에서 본다. Jaeger 는 받은 추적을 메모리에만 둔다.
+- 자동으로 잡히는 것: SQL(SQLAlchemy 이벤트, 값은 빼고 문장만), Redis(명령만, 값은 `?`), HTTP(httpx2 — openai SDK 가 쓰는 것), S3(botocore).
+
 ## 마이그레이션과 테스트
 
 이 폴더에서 실행한다. 테스트는 실제 PostgreSQL·Redis·SeaweedFS 에 붙는다.

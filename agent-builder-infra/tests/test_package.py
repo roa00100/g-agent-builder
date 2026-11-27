@@ -19,6 +19,8 @@ import pytest
         "agent_builder_infra.tables.model_alias",
         "agent_builder_infra.providers.object_storage",
         "agent_builder_infra.services.object_storage",
+        "agent_builder_infra.observability",
+        "agent_builder_infra.observability.sql",
     ],
 )
 def test_package_imports(name):

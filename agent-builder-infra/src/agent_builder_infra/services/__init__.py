@@ -4,6 +4,16 @@
 """
 
 from agent_builder_infra.services.db import DbService
+from agent_builder_infra.services.object_storage import (
+    ObjectInfo,
+    ObjectStorageService,
+)
 from agent_builder_infra.services.redis import RedisService, redis_key
 
-__all__ = ["DbService", "RedisService", "redis_key"]
+__all__ = [
+    "DbService",
+    "ObjectInfo",
+    "ObjectStorageService",
+    "RedisService",
+    "redis_key",
+]

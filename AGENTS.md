@@ -8,7 +8,8 @@
 
 - 사용자가 자기만의 에이전트를 조립해서, 자신이 필요한 업무 단계에서 에이전트의 보조를 지원한다
 - 목표는 **workflow 의 특정 단계에서 AI 의 보조를 받는 것**이다.
-- UI 는 나중이다. 구조 설계가 먼저고, UI 없이 명령줄로 돌아야 한다.
+- UI 는 나중이다. 구조 설계가 먼저다.
+- 호출은 기본적으로 REST 또는 CLI 로 한다. CLI 는 방법 중 하나일 뿐 고정값이 아니다 (2026-11-27 사용자 정정).
 - ** 에이전트는 사용자의 설계를 보조하고, 사용자는 설계를 확인한다**
 
 ## 2. 일하는 방식
@@ -55,7 +56,7 @@
 |---|---|
 | 결정 | 구현 언어는 Python (2026-11-27 사용자 지시). 코드는 `agent-builder-core/`(계약)와 `agent-builder-infra/`(구현)에 나눠 둔다 (2026-11-27 사용자가 고름) |
 | 결정 | DB 는 PostgreSQL (2026-11-27 사용자 지시) |
-| 결정 | LangGraph, pgvector, 웹 프레임워크는 쓰지 않는다 (2026-11-27 사용자 지시) |
+| 결정 | LangGraph, pgvector 는 쓰지 않는다 (2026-11-27 사용자 지시). 웹 프레임워크는 core·infra 에 두지 않고, REST 를 여는 진입 계층에서만 쓴다 (2026-11-27 사용자가 고름 — 처음의 「웹 프레임워크는 쓰지 않는다」를 1절의 REST 정정에 맞춰 바꿈) |
 | 결정 | 모델은 프로바이더 형태로 공급자를 고른다. 첫 공급자는 OpenRouter (2026-11-27 사용자 지시) |
 | 제안 — 설정됨, 사용자 확인 전 | 로컬 DB 는 docker compose, DB 접근은 SQLAlchemy 2 + psycopg 3(동기), 스키마 변경은 Alembic, 설정은 pydantic-settings + `.env`, 데이터 모양은 Pydantic v2 |
 | 미정 | Q1~Q3, Q5 (대표 workflow, AI 보조 단계, 두 번째 workflow, 자료 위치) |
@@ -71,7 +72,19 @@
 | 결정 | core 는 공통 계약 구조를 두는 커널 레벨이다. 특정 기술을 모르고, 의존성은 Pydantic 뿐이다. 구체 구현은 `agent-builder-infra` 에 둔다. infra 가 core 를 import 하고, 반대는 없다 (2026-11-27 사용자가 고름) |
 | 제안 — 사용자 확인 전 | 이름은 core 를 유지한다(kernel 로 바꾸지 않음) |
 | 미정 | core 의 계약(`contracts/`) — 짧게 사는 값 저장소, 실행 상태 저장소, 모델 공급자 등. 사용자가 쓰는 구조 코드 |
-| 진행 단계 | W0 이전 — infra 에 공통 기반(설정, 프로바이더·서비스·CRUD — 사용자 지시로 에이전트가 작성)이 있고, core 에는 빈 `contracts/` 와 빈 개념 패키지 셋만 있다. 테이블·마이그레이션은 0개, 모델을 부르는 코드도 없다 |
+| 결정 | 첫 계약은 모델 요청(`ModelRequest`)이다. 공급자 중립이고, 봉투 규칙(모르는 필드 거부·만든 뒤 불변)을 따른다 (2026-11-27 사용자가 고름) |
+| 결정 | 모델 요청의 `model` 은 논리 이름(예: `fast`, `smart`)이다. infra 가 공급자와 실제 모델 이름으로 바꾼다 (2026-11-27 사용자가 고름) |
+| 결정 | 모델 요청에 공급자 전용 옵션 칸을 두지 않는다 (2026-11-27 사용자가 고름) |
+| 결정 | 모델 요청에 버전 필드를 둔다 (2026-11-27 사용자가 고름) |
+| 결정 | 메시지 내용은 텍스트만이 아니라 이미지·파일도 담을 수 있는 구조로 지금 잡는다 (2026-11-27 사용자 지시) |
+| 결정 | 메시지 내용에 문자열을 주면 텍스트 조각 하나로 바꿔 받는다(문자열 지름길) (2026-11-27 사용자가 고름) |
+| 결정 | 오브젝트 스토리지를 도입한다. 메시지의 이미지·파일 조각이 저장된 파일을 가리킬 수 있게 한다 (2026-11-27 사용자 지시) |
+| 결정 | 오브젝트 스토리지는 SeaweedFS 다 (2026-11-27 사용자가 고름) |
+| 제안 — 사용자 확인 전 | infra 는 S3 API 로만 말한다(클라이언트 boto3). core 는 스토리지를 모르고, 파일은 우리 쪽 ID(`file_id`)로 가리킨다. 파일 정보는 Postgres, 내용은 SeaweedFS |
+| 결정 | 모델 논리 이름의 대응표는 Postgres 에 두고 Redis 에 캐싱한다 (2026-11-27 사용자 지시) |
+| 결정 | 대응표는 infra 의 함수로 넣고 고친다. 고칠 때 캐시도 같이 지운다 (2026-11-27 사용자가 고름). 지금 있는 진입점은 명령줄 하나다 — 호출 방법은 REST 또는 CLI 라는 1절에 따라 명령줄은 함수 위의 얇은 진입점일 뿐이다 |
+| 미정 | REST 진입 계층의 위치(패키지)와 쓸 웹 프레임워크 — 그 계층을 만들 때 고른다 |
+| 진행 단계 | W0 이전 — infra 에 공통 기반(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD — 사용자 지시로 에이전트가 작성)이 있고, core 에는 빈 `contracts/` 와 빈 개념 패키지 셋만 있다. 테이블은 `model_alias`(모델 논리 이름 대응표) 하나, 모델을 부르는 코드는 없다 |
 
 ## 6. 저장소 구성
 
@@ -82,18 +95,18 @@ AGENTS.md               이 문서
 .github/workflows/ci.yml    push·PR 때 ruff, core 테스트, 마이그레이션, infra 테스트
 ruff.toml               저장소 전체의 ruff 설정
 .python-version         Python 버전 (CI 가 읽는다)
-docker-compose.yml      로컬 PostgreSQL · Redis, 컨테이너 테스트용 app
+docker-compose.yml      로컬 PostgreSQL · Redis · SeaweedFS(오브젝트 스토리지), 컨테이너 테스트용 app
 .env.example            환경변수 예시 — 복사해서 루트에 .env 를 만든다
 .dockerignore           도커 빌드 맥락은 저장소 루트다
 .venv/                  가상환경 하나에 core 와 infra 를 같이 설치한다
 agent-builder-core/     계약 — 특정 기술을 모른다. DB 없이 테스트가 돈다
   src/agent_builder_core/
   tests/
-agent-builder-infra/    구현 — core 의 계약을 Postgres·Redis·OpenRouter 로 채운다
+agent-builder-infra/    구현 — core 의 계약을 Postgres·Redis·SeaweedFS·OpenRouter 로 채운다
   Dockerfile
-  alembic.ini · migrations/ 스키마 변경 (마이그레이션 0개)
+  alembic.ini · migrations/ 스키마 변경 (마이그레이션 1개: model_alias)
   src/agent_builder_infra/
-  tests/                    실제 PostgreSQL·Redis 에 붙는다
+  tests/                    실제 PostgreSQL·Redis·SeaweedFS 에 붙는다
 ```
 
 패키지 배치 규칙 (결정).
@@ -109,18 +122,21 @@ agent_builder_core/                     계약
 agent_builder_infra/                    구현
   settings.py               환경변수·.env 에서 읽는 설정
   providers/                접속 — 자원을 만들고, 확인(ping)하고, 닫는다
-    postgres.py · redis.py
+    postgres.py · redis.py · object_storage.py
   services/                 공통 동작 — 프로바이더를 생성자로 받는다
     db.py                   DbService: 트랜잭션·커서·SQL 직접 실행
     redis.py                RedisService: 문자열·JSON·모델·해시·카운터·키 (쓰기는 ttl 필수)
+    object_storage.py       ObjectStorageService: 키로 바이트 넣기·꺼내기·정보·목록·삭제 (S3 API)
   orm.py                    테이블 모델의 부모 Base
   crud.py                   ORM 공통 CRUD — 세션만 받는다
   container.py              조립 — 프로바이더·서비스를 만들어 core 의 서비스에 넣는다
+  model_alias/              모델 논리 이름 대응표 — models·schemas·service, 명령줄(__main__)
   <개념>/models.py          SQLAlchemy 테이블 모델 (Base 상속) — 테이블이 생기면
 ```
 
-- core 는 infra 와 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic)를 import 하지 않는다. core 의 `test_package.py` 가 이것을 확인한다.
+- core 는 infra 와 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic·boto3)를 import 하지 않는다. core 의 `test_package.py` 가 이것을 확인한다.
 - 테이블 모델과 Pydantic 모델을 한 클래스로 합치지 않는다.
+- 기능은 서비스 함수에 둔다. CLI·REST 는 그 함수를 부르기만 하는 얇은 진입점이고, 웹 프레임워크는 REST 진입 계층에만 둔다.
 - 프로바이더는 `container.py` 만 만든다. 다른 모듈은 container 에서 받거나 생성자로 받는다.
 - 새 테이블 모델 모듈은 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 

@@ -18,6 +18,7 @@ FORBIDDEN = [
     "redis",
     "openai",
     "alembic",
+    "boto3",
     "agent_builder_infra",
 ]
 

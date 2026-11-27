@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+from agent_builder_infra.model_alias import models as _model_alias_models  # noqa: F401
 from agent_builder_infra.orm import Base
 from agent_builder_infra.settings import get_settings
 
@@ -15,7 +16,7 @@ if config.config_file_name is not None:
 # 비밀번호를 커밋하지 않기 위해서다.
 DATABASE_URL = get_settings().database_url
 
-# 테이블 모델은 Base 를 상속한다. 모델 모듈이 생기면 여기서 import 해야
+# 테이블 모델은 Base 를 상속한다. 모델 모듈은 위에서 import 해야
 # autogenerate 가 그 테이블을 본다.
 target_metadata = Base.metadata
 

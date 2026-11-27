@@ -1,12 +1,18 @@
-"""실제 PostgreSQL·Redis 에 붙는 픽스처. 먼저 `docker compose up -d --wait` 로 띄운다.
+"""실제 PostgreSQL·Redis·오브젝트 스토리지에 붙는 픽스처.
+
+먼저 `docker compose up -d --wait` 로 띄운다.
 
 container.py 를 거치지 않고 프로바이더를 직접 만들어 서비스에 넣는다.
 """
 
 import pytest
 
-from agent_builder_infra.providers import PostgresProvider, RedisProvider
-from agent_builder_infra.services import DbService, RedisService
+from agent_builder_infra.providers import (
+    ObjectStorageProvider,
+    PostgresProvider,
+    RedisProvider,
+)
+from agent_builder_infra.services import DbService, ObjectStorageService, RedisService
 from agent_builder_infra.settings import get_settings
 
 
@@ -32,3 +38,21 @@ def db(postgres_provider):
 @pytest.fixture
 def redis_service(redis_provider):
     return RedisService(redis_provider)
+
+
+@pytest.fixture(scope="session")
+def object_storage_provider():
+    settings = get_settings()
+    provider = ObjectStorageProvider(
+        endpoint_url=settings.storage_endpoint_url,
+        access_key=settings.storage_access_key,
+        secret_key=settings.storage_secret_key.get_secret_value(),
+        bucket=settings.storage_bucket,
+    )
+    yield provider
+    provider.close()
+
+
+@pytest.fixture
+def object_storage(object_storage_provider):
+    return ObjectStorageService(object_storage_provider)

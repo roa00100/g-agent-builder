@@ -21,6 +21,9 @@ dependencies = [
     "pydantic-settings>=2.7",
     # 하한은 설치해 연결을 확인한 버전이다.
     "redis>=8.2",
+    # 오브젝트 스토리지는 S3 API 로만 부른다 — SeaweedFS 를 바꿔도 이 코드는 그대로다.
+    # 하한은 SeaweedFS 4.55 와 인증·읽기·쓰기를 실제로 확인한 버전이다.
+    "boto3>=1.44",
 ]
 
 [project.optional-dependencies]

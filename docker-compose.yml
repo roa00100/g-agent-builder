@@ -55,6 +55,34 @@ services:
       timeout: 3s
       retries: 15
 
+  storage:
+    # 오브젝트 스토리지(S3 API). 버전까지 고정한다 — 4.x 안에서도 옵션이 자주 바뀐다.
+    image: chrislusf/seaweedfs:4.55
+    # mini: master·volume·filer·S3 를 한 프로세스로 띄운다. 사용자 한 명이라 이것으로 충분하다.
+    # -bucket: 시작할 때 버킷을 만든다(이미 있으면 그대로).
+    # -s3.autoCreateBucket=false: 없는 버킷에 쓰면 오류를 낸다 — 켜 두면 버킷 이름을
+    #   잘못 적어도 새 버킷이 조용히 생긴다.
+    command:
+      - mini
+      - -dir=/data
+      - -bucket=${STORAGE_BUCKET}
+      - -s3.autoCreateBucket=false
+    environment:
+      # 이 값이 있으면 S3 가 접근 키 인증을 요구한다.
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY}
+    ports:
+      # 이 PC 에서만 붙는다. S3 포트만 연다 — 관리 화면 등 다른 포트는 열지 않는다.
+      - "127.0.0.1:${STORAGE_PORT}:8333"
+    volumes:
+      - storage-data:/data
+    healthcheck:
+      # S3 포트가 응답하면 된다. 인증 전이라 403 이 오는 것이 정상이다.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8333/ | grep -qE '^(2|3|4)'"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   app:
     # `docker compose up` 으로는 뜨지 않는다. `docker compose run --rm app` 으로 부른다.
     profiles: ["app"]
@@ -75,12 +103,21 @@ services:
       REDIS_PORT: "6379"
       REDIS_DB: ${REDIS_DB}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # 오브젝트 스토리지도 같다 — 서비스 이름 storage, 컨테이너의 8333.
+      STORAGE_HOST: storage
+      STORAGE_PORT: "8333"
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      storage:
+        condition: service_healthy
 
 volumes:
   db-data:
   redis-data:
+  storage-data:

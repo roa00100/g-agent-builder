@@ -12,6 +12,8 @@ import pytest
         "agent_builder_infra.container",
         "agent_builder_infra.crud",
         "agent_builder_infra.orm",
+        "agent_builder_infra.providers.object_storage",
+        "agent_builder_infra.services.object_storage",
     ],
 )
 def test_package_imports(name):

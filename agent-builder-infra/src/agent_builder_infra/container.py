@@ -9,9 +9,12 @@ get_db().fetch_all("select ...")
 
 from functools import lru_cache
 
+from agent_builder_infra.model_alias.service import ModelAliasService
+from agent_builder_infra.providers.object_storage import ObjectStorageProvider
 from agent_builder_infra.providers.postgres import PostgresProvider
 from agent_builder_infra.providers.redis import RedisProvider
 from agent_builder_infra.services.db import DbService
+from agent_builder_infra.services.object_storage import ObjectStorageService
 from agent_builder_infra.services.redis import RedisService
 from agent_builder_infra.settings import get_settings
 
@@ -27,6 +30,17 @@ def get_redis_provider() -> RedisProvider:
 
 
 @lru_cache
+def get_object_storage_provider() -> ObjectStorageProvider:
+    settings = get_settings()
+    return ObjectStorageProvider(
+        endpoint_url=settings.storage_endpoint_url,
+        access_key=settings.storage_access_key,
+        secret_key=settings.storage_secret_key.get_secret_value(),
+        bucket=settings.storage_bucket,
+    )
+
+
+@lru_cache
 def get_db() -> DbService:
     return DbService(get_postgres_provider())
 
@@ -36,13 +50,25 @@ def get_redis() -> RedisService:
     return RedisService(get_redis_provider())
 
 
+@lru_cache
+def get_object_storage() -> ObjectStorageService:
+    return ObjectStorageService(get_object_storage_provider())
+
+
+@lru_cache
+def get_model_alias_service() -> ModelAliasService:
+    return ModelAliasService(get_db(), get_redis())
+
+
 def close_all() -> None:
     """프로세스를 끝낼 때 부른다. 만든 적 없는 프로바이더는 만들지 않는다.
 
     부른 뒤에 get_* 를 다시 부르면 새로 만든다.
     """
-    for get_provider in (get_postgres_provider, get_redis_provider):
+    providers = (get_postgres_provider, get_redis_provider, get_object_storage_provider)
+    for get_provider in providers:
         if get_provider.cache_info().currsize:
             get_provider().close()
-    for getter in (get_postgres_provider, get_redis_provider, get_db, get_redis):
+    services = (get_db, get_redis, get_object_storage, get_model_alias_service)
+    for getter in (*providers, *services):
         getter.cache_clear()

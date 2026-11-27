@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # 적으면 compose 의 Redis 도 같은 값을 요구한다.
     redis_password: SecretStr | None = None
 
+    # 오브젝트 스토리지(SeaweedFS, S3 API) 접속 값. compose 와 같은 값을 쓴다.
+    # PC 에서는 127.0.0.1, 컨테이너 안에서는 compose 서비스 이름 storage.
+    storage_host: str
+    storage_port: int
+    storage_access_key: str
+    storage_secret_key: SecretStr
+    storage_bucket: str
+
     # 모델을 부르지 않는 명령(마이그레이션 등)은 키 없이 돌아야 하므로 없어도 된다.
     # SecretStr 이라 로그나 출력에 값이 찍히지 않는다. 꺼낼 때는 .get_secret_value()
     openrouter_api_key: SecretStr | None = None
@@ -89,6 +97,11 @@ class Settings(BaseSettings):
             # safe="": / 까지 이스케이프해야 주소의 구분자와 헷갈리지 않는다.
             auth = f":{quote(self.redis_password.get_secret_value(), safe='')}@"
         return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    @property
+    def storage_endpoint_url(self) -> str:
+        """S3 API 주소. 로컬 SeaweedFS 라 http 다."""
+        return f"http://{self.storage_host}:{self.storage_port}"
 
 
 @lru_cache

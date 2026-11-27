@@ -13,6 +13,11 @@ REQUIRED = {
     "REDIS_HOST": "127.0.0.1",
     "REDIS_PORT": "6379",
     "REDIS_DB": "0",
+    "STORAGE_HOST": "127.0.0.1",
+    "STORAGE_PORT": "8333",
+    "STORAGE_ACCESS_KEY": "ak",
+    "STORAGE_SECRET_KEY": "sk",
+    "STORAGE_BUCKET": "b",
 }
 
 
@@ -86,6 +91,14 @@ def test_redis_password_is_hidden(env):
     env.setenv("REDIS_PASSWORD", "hidden-secret")
 
     assert "hidden-secret" not in repr(Settings(_env_file=None))
+
+
+def test_storage_endpoint_and_hidden_secret(env):
+    env.setenv("STORAGE_SECRET_KEY", "hidden-secret")
+    settings = Settings(_env_file=None)
+
+    assert settings.storage_endpoint_url == "http://127.0.0.1:8333"
+    assert "hidden-secret" not in repr(settings)
 
 
 def test_openrouter_key_is_optional_and_hidden(env):

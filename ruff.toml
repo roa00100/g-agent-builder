@@ -1,0 +1,13 @@
+# 저장소 전체(core·infra)가 같이 쓰는 ruff 설정. 저장소 루트에서 `ruff check .` 로 돌린다.
+target-version = "py313"
+# import 정렬에서 우리 패키지를 「우리 것」으로 알아보게 한다.
+src = [
+    "agent-builder-core/src",
+    "agent-builder-core/tests",
+    "agent-builder-infra/src",
+    "agent-builder-infra/tests",
+]
+
+[lint]
+# E·F 기본 오류, I import 정렬, B 흔한 버그, UP 옛 문법.
+select = ["E", "F", "I", "B", "UP"]

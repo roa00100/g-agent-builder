@@ -8,9 +8,6 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: agent-builder-core
     services:
       db:
         # docker-compose.yml 과 같은 메이저 버전.
@@ -37,16 +34,23 @@ jobs:
           --health-timeout 3s
           --health-retries 15
     env:
-      # 이 작업 안에서만 뜨는 일회용 DB 의 값이다.
+      # 이 작업 안에서만 뜨는 일회용 DB·Redis 의 값이다.
       DATABASE_URL: postgresql+psycopg://agent_builder:agent_builder_ci@127.0.0.1:5432/agent_builder
       REDIS_URL: redis://127.0.0.1:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version-file: agent-builder-core/.python-version
-      - run: python -m pip install -e ".[dev]"
+          python-version-file: .python-version
+      - run: python -m pip install -e "./agent-builder-core[dev]" -e "./agent-builder-infra[dev]"
       - run: ruff check .
       - run: ruff format --check .
-      - run: alembic upgrade head
-      - run: python -m pytest
+      - name: core tests (DB 없이)
+        working-directory: agent-builder-core
+        run: python -m pytest
+      - name: migrations
+        working-directory: agent-builder-infra
+        run: alembic upgrade head
+      - name: infra tests
+        working-directory: agent-builder-infra
+        run: python -m pytest

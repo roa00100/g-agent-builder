@@ -1,0 +1,17 @@
+# 빌드 맥락은 저장소 루트다.
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/build/
+**/dist/
+**/.pytest_cache/
+**/.ruff_cache/
+.env
+.env.*
+.git/
+.github/
+.idea/
+.vscode/
+**/Dockerfile
+.dockerignore

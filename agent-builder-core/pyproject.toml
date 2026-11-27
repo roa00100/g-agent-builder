@@ -5,24 +5,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-builder-core"
 version = "0.1.0"
-description = "사용자가 자기만의 에이전트를 조립해 workflow 의 특정 단계에서 AI 보조를 받게 하는 에이전트 빌더의 코어"
+description = "에이전트 빌더의 커널 — 공통 계약 구조. 특정 기술(DB·Redis·모델 공급자)을 모른다"
 readme = "README.md"
 # 개발 PC 에 설치된 버전이 3.13 이다.
 requires-python = ">=3.13"
+# 계약과 데이터 모양만 둔다. 기술 의존성(SQLAlchemy·redis·openai 등)은 넣지 않는다.
 dependencies = [
-    # 모델 공급자 호출. OpenRouter 는 OpenAI 호환 API 라서 주소만 바꿔 쓴다.
-    # 하한은 OpenRouter 연결을 실제로 확인한 버전이다.
-    "openai>=3.60",
-    "sqlalchemy>=2.0",
-    "psycopg[binary]>=3.2",
-    "alembic>=1.14",
     "pydantic>=2.10",
-    "pydantic-settings>=2.7",
-    # 하한은 설치해 연결을 확인한 버전이다.
-    "redis>=8.2",
 ]
 
 [project.optional-dependencies]
+# ruff 는 저장소 전체(ruff.toml)에 쓰지만, core 는 늘 같이 설치되므로 여기에 둔다.
 dev = ["pytest>=8", "ruff>=0.8"]
 
 [tool.setuptools.packages.find]
@@ -32,11 +25,3 @@ where = ["src"]
 testpaths = ["tests"]
 # 오타 난 마커·설정을 조용히 넘기지 않는다.
 addopts = "--strict-markers --strict-config"
-
-[tool.ruff]
-target-version = "py313"
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-# E·F 기본 오류, I import 정렬, B 흔한 버그, UP 옛 문법.
-select = ["E", "F", "I", "B", "UP"]

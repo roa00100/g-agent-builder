@@ -42,7 +42,10 @@ services:
   app:
     # `docker compose up` 으로는 뜨지 않는다. `docker compose run --rm app` 으로 부른다.
     profiles: ["app"]
-    build: .
+    build:
+      # core 와 infra 를 같이 넣어야 하므로 저장소 루트를 통째로 넘긴다.
+      context: .
+      dockerfile: agent-builder-infra/Dockerfile
     environment:
       # 컨테이너 안에서는 DB 가 127.0.0.1 이 아니라 서비스 이름 db 에 있다.
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}

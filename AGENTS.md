@@ -53,7 +53,7 @@
 
 | 항목 | 상태 |
 |---|---|
-| 결정 | 구현 언어는 Python, 코드는 `agent-builder-core/` 에 둔다 (2026-11-27 사용자 지시) |
+| 결정 | 구현 언어는 Python (2026-11-27 사용자 지시). 코드는 `agent-builder-core/`(계약)와 `agent-builder-infra/`(구현)에 나눠 둔다 (2026-11-27 사용자가 고름) |
 | 결정 | DB 는 PostgreSQL (2026-11-27 사용자 지시) |
 | 결정 | LangGraph, pgvector, 웹 프레임워크는 쓰지 않는다 (2026-11-27 사용자 지시) |
 | 결정 | 모델은 프로바이더 형태로 공급자를 고른다. 첫 공급자는 OpenRouter (2026-11-27 사용자 지시) |
@@ -62,9 +62,16 @@
 | 결정 | 사용자가 직접 쓰는 것은 기본 구조 코드다. 밑바탕까지 전부 직접 쓰지 않으며, 쓸 수 있는 오픈소스는 적극 검토한다 (2026-11-27 사용자 지시) |
 | 결정 | OpenRouter 는 `openai` SDK 로 부른다 — 주소만 바꿔 쓴다 (2026-11-27 사용자가 고름) |
 | 미정 | 프로바이더 인터페이스의 모양 (사용자가 쓰는 구조 코드) |
-| 결정 | 패키지는 개념별로 나누고, 각 개념 안에서 층(models·schemas·service)을 나눈다 (2026-11-27 사용자가 고름) |
+| 결정 | 패키지는 개념별로 나누고, 각 개념 안에서 층을 나눈다. core 의 개념에는 schemas·service 만 두고, SQLAlchemy 테이블 모델은 infra 에 둔다. 개념 서비스는 세션이 아니라 core 의 계약을 생성자로 받는다 (2026-11-27 사용자가 고름 — 처음의 「models 도 개념 안에, 세션은 인자로」를 core 분리에 맞춰 바꿈) |
 | 결정 | 개념은 `workflow`(정의), `run`(실행 상태), `assist`(AI 보조 단계) 셋으로 시작한다 (2026-11-27 사용자가 고름) |
-| 진행 단계 | W0 이전 — 설정 모듈과 DB 연결 모듈(사용자 지시로 에이전트가 작성), 빈 개념 패키지 셋만 있다. 테이블·마이그레이션은 0개, 모델을 부르는 코드도 없다 |
+| 결정 | Redis 를 더해 체크포인트 같은 상태를 저장한다 (2026-11-27 사용자 지시) |
+| 제안 — 설정됨 | Redis 8 을 AOF(`appendfsync always`)로 띄워 재시작해도 남게 한다. 클라이언트는 redis-py |
+| 결정 | Postgres 가 기준이다. 단계 결과·채택 여부·기록처럼 남아야 하는 것은 Postgres 에 둔다. Redis 에는 보조 고리가 도는 동안의 중간 상태, 잠금·취소 신호처럼 짧게 사는 것만 둔다. Redis 가 비어도 Postgres 만으로 마지막 확정 단계부터 이어 갈 수 있어야 한다 (2026-11-27 사용자가 고름) |
+| 결정 | 접속 프로바이더(`providers/`)와 공통 서비스(`services/`)를 나눈다. 서비스는 프로바이더를 생성자로 받고, 조립은 `container.py` 한 곳에서 한다. `crud.py` 는 세션만 받는 함수로 둔다. 모두 infra 에 있다 (2026-11-27 사용자가 고름) |
+| 결정 | core 는 공통 계약 구조를 두는 커널 레벨이다. 특정 기술을 모르고, 의존성은 Pydantic 뿐이다. 구체 구현은 `agent-builder-infra` 에 둔다. infra 가 core 를 import 하고, 반대는 없다 (2026-11-27 사용자가 고름) |
+| 제안 — 사용자 확인 전 | 이름은 core 를 유지한다(kernel 로 바꾸지 않음) |
+| 미정 | core 의 계약(`contracts/`) — 짧게 사는 값 저장소, 실행 상태 저장소, 모델 공급자 등. 사용자가 쓰는 구조 코드 |
+| 진행 단계 | W0 이전 — infra 에 공통 기반(설정, 프로바이더·서비스·CRUD — 사용자 지시로 에이전트가 작성)이 있고, core 에는 빈 `contracts/` 와 빈 개념 패키지 셋만 있다. 테이블·마이그레이션은 0개, 모델을 부르는 코드도 없다 |
 
 ## 6. 저장소 구성
 
@@ -72,43 +79,61 @@
 agent-handoff.md        과거 다른 프로젝트의 경험 (교훈·설계 이론, 참고용)
 AGENTS.md               이 문서
 .gitignore · .gitattributes · .editorconfig
-.github/workflows/ci.yml    push·PR 때 ruff 와 pytest
-agent-builder-core/     Python 프로젝트
-  pyproject.toml            의존성, ruff·pytest 설정
-  Dockerfile · .dockerignore
-  docker-compose.yml        로컬 PostgreSQL
-  .env.example              환경변수 예시 — 복사해서 .env 를 만든다
-  alembic.ini · migrations/ 스키마 변경 (마이그레이션 0개)
-  .python-version
-  src/agent_builder_core/   패키지 — settings.py(설정), db.py(DB 연결)
-    workflow/ · run/ · assist/  개념 패키지 (비어 있음)
+.github/workflows/ci.yml    push·PR 때 ruff, core 테스트, 마이그레이션, infra 테스트
+ruff.toml               저장소 전체의 ruff 설정
+.python-version         Python 버전 (CI 가 읽는다)
+docker-compose.yml      로컬 PostgreSQL · Redis, 컨테이너 테스트용 app
+.env.example            환경변수 예시 — 복사해서 루트에 .env 를 만든다
+.dockerignore           도커 빌드 맥락은 저장소 루트다
+.venv/                  가상환경 하나에 core 와 infra 를 같이 설치한다
+agent-builder-core/     계약 — 특정 기술을 모른다. DB 없이 테스트가 돈다
+  src/agent_builder_core/
   tests/
+agent-builder-infra/    구현 — core 의 계약을 Postgres·Redis·OpenRouter 로 채운다
+  Dockerfile
+  alembic.ini · migrations/ 스키마 변경 (마이그레이션 0개)
+  src/agent_builder_infra/
+  tests/                    실제 PostgreSQL·Redis 에 붙는다
 ```
 
 패키지 배치 규칙 (결정).
 
 ```
-src/agent_builder_core/
-  settings.py · db.py      모든 개념이 같이 쓰는 기반
+agent_builder_core/                     계약
+  contracts/                공통 계약 (Protocol). 특정 기술의 말을 쓰지 않는다
+  workflow/ · run/ · assist/   개념 패키지
   <개념>/
-    models.py               SQLAlchemy 테이블 모델 (Base 상속)
     schemas.py              Pydantic 모델 — 주고받는 데이터의 모양
-    service.py              업무 로직. 세션은 인자로 받는다
+    service.py              업무 로직. 필요한 계약을 생성자로 받는다
+
+agent_builder_infra/                    구현
+  settings.py               환경변수·.env 에서 읽는 설정
+  providers/                접속 — 자원을 만들고, 확인(ping)하고, 닫는다
+    postgres.py · redis.py
+  services/                 공통 동작 — 프로바이더를 생성자로 받는다
+    db.py                   DbService: 트랜잭션·커서·SQL 직접 실행
+    redis.py                RedisService: 문자열·JSON·모델·해시·카운터·키 (쓰기는 ttl 필수)
+  orm.py                    테이블 모델의 부모 Base
+  crud.py                   ORM 공통 CRUD — 세션만 받는다
+  container.py              조립 — 프로바이더·서비스를 만들어 core 의 서비스에 넣는다
+  <개념>/models.py          SQLAlchemy 테이블 모델 (Base 상속) — 테이블이 생기면
 ```
 
+- core 는 infra 와 기술 패키지(sqlalchemy·psycopg·redis·openai·alembic)를 import 하지 않는다. core 의 `test_package.py` 가 이것을 확인한다.
 - 테이블 모델과 Pydantic 모델을 한 클래스로 합치지 않는다.
-- 새 개념의 `models.py` 는 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
+- 프로바이더는 `container.py` 만 만든다. 다른 모듈은 container 에서 받거나 생성자로 받는다.
+- 새 테이블 모델 모듈은 `migrations/env.py` 에서 import 해야 autogenerate 가 본다.
 
-명령은 `agent-builder-core/` 에서 실행한다.
+설치와 확인. 저장소 루트에서 시작한다.
 
 ```powershell
 py -3.13 -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
+.venv\Scripts\python -m pip install -e ".\agent-builder-core[dev]" -e ".\agent-builder-infra[dev]"
 Copy-Item .env.example .env
 docker compose up -d --wait
-.venv\Scripts\alembic upgrade head
 .venv\Scripts\ruff check .
 .venv\Scripts\ruff format --check .
-.venv\Scripts\python -m pytest
+cd agent-builder-core; ..\.venv\Scripts\python -m pytest; cd ..
+cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; ..\.venv\Scripts\python -m pytest; cd ..
 docker compose run --rm --build app
 ```

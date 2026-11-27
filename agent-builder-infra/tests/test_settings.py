@@ -1,8 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from agent_builder_core.settings import Settings
-
+from agent_builder_infra.settings import Settings
 
 DB_URL = "postgresql+psycopg://u:p@127.0.0.1:5432/d"
 REDIS_URL = "redis://127.0.0.1:6379/0"

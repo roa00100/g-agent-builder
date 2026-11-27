@@ -1,41 +1,23 @@
 # agent-builder-core
 
-에이전트 빌더의 코어. 사용자가 자기만의 에이전트를 조립해서, 필요한 업무 단계(workflow 의 특정 단계)에서 그 에이전트의 보조를 받는다.
+에이전트 빌더의 커널 — 공통 계약 구조를 둔다. 사용자가 자기만의 에이전트를 조립해서, 필요한 업무 단계(workflow 의 특정 단계)에서 그 에이전트의 보조를 받는다.
+
+core 는 특정 기술(DB·Redis·모델 공급자)을 모른다. 의존성은 Pydantic 뿐이고, 구현은 `agent-builder-infra` 가 채운다.
 작업 규칙은 저장소 루트의 `AGENTS.md` 를 본다. `agent-handoff.md` 는 과거 다른 프로젝트의 경험을 정리한 참고 문서다.
 
-패키지에는 설정(`settings.py`)과 DB 연결(`db.py`)만 있다. 테이블과 구조는 대표 workflow 가 정해진 뒤에 만든다.
+| 모듈 | 내용 |
+|---|---|
+| `contracts/` | 공통 계약(Protocol) 자리. 비어 있음 |
+| `workflow/` | workflow 정의 — 단계의 순서, 단계마다 입력·출력, 누가 하는가. 비어 있음 |
+| `run/` | 실행 상태 — 지금 어느 단계인가, 단계별 결과, 멈췄다 이어 가기. 비어 있음 |
+| `assist/` | AI 보조 단계 — 보조 프로필에 따라 제안을 만든다. 비어 있음 |
 
-테스트는 실제 PostgreSQL 에 붙는다. 먼저 아래 「로컬 DB」로 DB 를 띄운다.
+## 테스트
 
-## 준비
-
-```powershell
-py -3.13 -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
-Copy-Item .env.example .env
-```
-
-## 로컬 DB
+DB·Redis 없이 돈다. 설치는 저장소 루트 `AGENTS.md` 6절을 본다.
 
 ```powershell
-docker compose up -d --wait
-.venv\Scripts\alembic upgrade head
+..\.venv\Scripts\python -m pytest
 ```
 
-끌 때는 `docker compose down`. 데이터까지 지우려면 `docker compose down -v`.
-
-## 확인
-
-```powershell
-.venv\Scripts\ruff check .
-.venv\Scripts\ruff format --check .
-.venv\Scripts\python -m pytest
-```
-
-## 도커
-
-```powershell
-docker compose run --rm --build app
-```
-
-실행 진입점이 아직 없어 컨테이너의 기본 명령은 pytest 다. 테스트가 DB 에 붙으므로 compose 로 DB 와 함께 띄운다.
+`tests/test_package.py` 는 core 가 infra 나 기술 패키지를 import 하지 않는지도 확인한다.

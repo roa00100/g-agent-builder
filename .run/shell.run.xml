@@ -1,0 +1,24 @@
+<component name="ProjectRunConfigurationManager">
+  <!-- 셸: IntelliJ 의 Terminal 탭(진짜 PowerShell)에서 .venv 의 파이썬으로 띄운다.
+       Python 실행 구성을 쓰지 않는 까닭: 구성에 적은 인터프리터 대신 프로젝트 기본
+       Python(전역)이 쓰여 모듈을 못 찾았고, 셸의 입력 도구(prompt_toolkit)는 진짜 콘솔이
+       있어야 뜨는데 실행 창은 콘솔이 아니다. Terminal 탭은 둘 다 맞는다.
+       명령 없이 실행하면 셸이 뜨고, 사용자 이름은 켤 때 묻는다. -->
+  <configuration default="false" name="셸" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value=".venv\Scripts\python.exe -m agent_builder_runtime" />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="" />
+    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
+    <option name="INTERPRETER_PATH" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="EXECUTE_IN_TERMINAL" value="true" />
+    <option name="EXECUTE_SCRIPT_FILE" value="false" />
+    <!-- 환경변수는 두지 않는다: IntelliJ 가 bash 문법(export)으로 앞에 붙이는데 Terminal 탭은
+         PowerShell 이라 오류가 난다. 진짜 콘솔에서는 파이썬이 한글을 그대로 주고받아 필요 없다. -->
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>

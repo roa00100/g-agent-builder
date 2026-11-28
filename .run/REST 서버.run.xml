@@ -1,0 +1,23 @@
+<component name="ProjectRunConfigurationManager">
+  <!-- REST 서버: IntelliJ 의 Terminal 탭에서 .venv 의 파이썬으로 rest 프로필을 띄운다
+       (http://127.0.0.1:8000/docs). 멈추기: 그 탭에서 Ctrl-C.
+       Python 실행 구성을 쓰지 않는 까닭은 shell.run.xml 과 같다 — 구성의 인터프리터 대신
+       전역 Python 이 쓰였다. 파일 이름은 IntelliJ 가 구성 이름을 따라 짓는 것을 따른다. -->
+  <configuration default="false" name="REST 서버" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value=".venv\Scripts\python.exe -m agent_builder_runtime --profile rest" />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="" />
+    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
+    <option name="INTERPRETER_PATH" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="EXECUTE_IN_TERMINAL" value="true" />
+    <option name="EXECUTE_SCRIPT_FILE" value="false" />
+    <!-- 환경변수는 두지 않는다: IntelliJ 가 bash 문법(export)으로 앞에 붙이는데 Terminal 탭은
+         PowerShell 이라 오류가 난다. 진짜 콘솔에서는 파이썬이 한글을 그대로 주고받아 필요 없다. -->
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>

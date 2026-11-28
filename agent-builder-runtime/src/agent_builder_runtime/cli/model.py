@@ -14,7 +14,6 @@ INFO 로그 model.call.done 한 줄(stderr)에 있다 — 같은 것을 여기�
 
 import argparse
 import json
-import sys
 
 from pydantic import ValidationError
 
@@ -30,13 +29,13 @@ from agent_builder_core.contracts.model import (
 )
 from agent_builder_core.model import ProviderMismatch, UnresolvedSource
 from agent_builder_infra.services import CipherError
+from agent_builder_runtime.cli.render import say, table
 from agent_builder_runtime.container import (
     MissingMasterKey,
     get_call_log,
     get_model_gateway,
 )
 from agent_builder_runtime.failure_text import (
-    Explanation,
     explain,
     invalid_option,
     no_call_record,
@@ -85,14 +84,13 @@ def run(args: argparse.Namespace) -> int:
         return _call(args)
     if args.command == "calls":
         if args.limit < 1:
-            _say(invalid_option("--limit", args.limit, "1 이상이어야 합니다."))
+            say(invalid_option("--limit", args.limit, "1 이상이어야 합니다."))
             return EXIT_INVALID
-        for record in get_call_log().list(args.limit):
-            print(_line(record))
+        table(HEADERS, [_cells(record) for record in get_call_log().list(args.limit)])
         return 0
     record = get_call_log().get(args.request_id)
     if record is None:
-        _say(no_call_record(args.request_id))
+        say(no_call_record(args.request_id))
         return EXIT_UNKNOWN
     print(record.model_dump_json(indent=2))
     if args.body:
@@ -133,18 +131,27 @@ def _call(args: argparse.Namespace) -> int:
         )
         response = get_model_gateway().complete(request)
     except _KNOWN as error:
-        _say(explain(error, "call"))
+        say(explain(error, "call"))
         return next(code for kinds, code in _EXIT_CODES if isinstance(error, kinds))
     print(response.text())
     return 0
 
 
-def _say(explanation: Explanation) -> None:
-    print(explanation.text(), file=sys.stderr)
+# 표의 머리줄. 화면에 찍을 때만 보인다 — 파이프로 넘기면 탭으로 나눈 줄만 나간다.
+HEADERS = (
+    "시각",
+    "request_id",
+    "모델",
+    "공급자 모델",
+    "결과",
+    "토큰",
+    "비용",
+    "걸린 시간",
+)
 
 
-def _line(record: CallRecord) -> str:
-    """시각·request_id·모델·결과·토큰·비용·걸린 시간을 탭으로 나눈 한 줄."""
+def _cells(record: CallRecord) -> tuple[str, ...]:
+    """시각·request_id·모델·결과·토큰(입력/출력)·비용·걸린 시간."""
     when = record.started_at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
     if record.status == "ok":
         result = record.finish_reason
@@ -154,6 +161,12 @@ def _line(record: CallRecord) -> str:
         tokens = "-"
     cost = "-" if record.cost is None else str(record.cost)
     return (
-        f"{when}\t{record.request_id}\t{record.model}\t{record.provider_model}"
-        f"\t{result}\t{tokens}\t{cost}\t{record.latency_ms}ms"
+        when,
+        record.request_id,
+        record.model,
+        record.provider_model,
+        result,
+        tokens,
+        cost,
+        f"{record.latency_ms}ms",
     )

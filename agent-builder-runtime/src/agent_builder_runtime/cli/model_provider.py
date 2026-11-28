@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from agent_builder_core.contracts.model import UnknownProvider
 from agent_builder_infra.services import CipherError
+from agent_builder_runtime.cli.render import say, table
 from agent_builder_runtime.container import (
     MissingMasterKey,
     get_provider_profiles,
@@ -66,8 +67,7 @@ def run(args: argparse.Namespace) -> int:
     profiles = get_provider_profiles()
     try:
         if args.command == "list":
-            for profile in profiles.list():
-                print(_line(profile))
+            table(HEADERS, [_cells(profile) for profile in profiles.list()])
         elif args.command == "show":
             profile = profiles.get(args.name)
             if profile is None:
@@ -77,7 +77,7 @@ def run(args: argparse.Namespace) -> int:
             profiles.save(
                 args.name, base_url=args.base_url, timeout_seconds=args.timeout
             )
-            print(_line(profiles.get(args.name)))
+            table(HEADERS, [_cells(profiles.get(args.name))])
         elif args.command == "set-key":
             api_key = (
                 sys.stdin.readline().strip()
@@ -88,26 +88,33 @@ def run(args: argparse.Namespace) -> int:
             print(f"키를 넣었다: {args.name}")
         elif args.command in ("enable", "disable"):
             profiles.set_enabled(args.name, args.command == "enable")
-            print(_line(profiles.get(args.name)))
+            table(HEADERS, [_cells(profiles.get(args.name))])
         elif args.command == "delete":
             if not profiles.delete(args.name):
                 raise UnknownProvider(args.name, "no_profile")
             print(f"지움: {args.name}")
     except (UnknownProvider, MissingMasterKey, CipherError) as error:
-        print(explain(error, "manage").text(), file=sys.stderr)
+        say(explain(error, "manage"))
         return EXIT_UNKNOWN
     except (ValidationError, ValueError) as error:
-        print(explain(error, "manage").text(), file=sys.stderr)
+        say(explain(error, "manage"))
         return EXIT_INVALID
     return 0
 
 
-def _line(profile: ProviderProfile) -> str:
+# 표의 머리줄. 화면에 찍을 때만 보인다 — 파이프로 넘기면 탭으로 나눈 줄만 나간다.
+HEADERS = ("이름", "주소", "대기", "키", "상태")
+
+
+def _cells(profile: ProviderProfile) -> tuple[str, ...]:
     state = "켜짐" if profile.enabled else "꺼짐"
     key = "키 있음" if profile.has_api_key else "키 없음"
     return (
-        f"{profile.name}\t{profile.base_url}\t{profile.timeout_seconds:g}초"
-        f"\t{key}\t{state}"
+        profile.name,
+        profile.base_url,
+        f"{profile.timeout_seconds:g}초",
+        key,
+        state,
     )
 
 

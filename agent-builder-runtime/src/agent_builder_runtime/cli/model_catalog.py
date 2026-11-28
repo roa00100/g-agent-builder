@@ -13,7 +13,6 @@ python -m agent_builder_runtime model-catalog delete fast
 """
 
 import argparse
-import sys
 
 from pydantic import ValidationError
 
@@ -22,6 +21,7 @@ from agent_builder_core.contracts.model import (
     ModelSpec,
     UnknownModel,
 )
+from agent_builder_runtime.cli.render import say, table
 from agent_builder_runtime.container import get_model_catalog
 from agent_builder_runtime.failure_text import explain
 
@@ -65,8 +65,7 @@ def run(args: argparse.Namespace) -> int:
     catalog: ModelCatalog = get_model_catalog()
     try:
         if args.command == "list":
-            for alias in catalog.list():
-                print(_line(alias))
+            table(HEADERS, [_cells(alias) for alias in catalog.list()])
         elif args.command == "show":
             alias = catalog.get(args.name)
             if alias is None:
@@ -81,30 +80,31 @@ def run(args: argparse.Namespace) -> int:
                 timeout_seconds=args.timeout,
             )
             catalog.upsert(alias)
-            print(_line(alias))
+            table(HEADERS, [_cells(alias)])
         elif args.command in ("enable", "disable"):
             catalog.set_enabled(args.name, args.command == "enable")
-            print(_line(catalog.get(args.name)))
+            table(HEADERS, [_cells(catalog.get(args.name))])
         elif args.command == "delete":
             if not catalog.delete(args.name):
                 raise UnknownModel(args.name)
             print(f"지움: {args.name}")
     except UnknownModel as error:
-        print(explain(error, "manage").text(), file=sys.stderr)
+        say(explain(error, "manage"))
         return EXIT_UNKNOWN
     except ValidationError as error:
-        print(explain(error, "manage").text(), file=sys.stderr)
+        say(explain(error, "manage"))
         return EXIT_INVALID
     return 0
 
 
-def _line(alias: ModelSpec) -> str:
+# 표의 머리줄. 화면에 찍을 때만 보인다 — 파이프로 넘기면 탭으로 나눈 줄만 나간다.
+HEADERS = ("이름", "공급자", "공급자 모델", "받는 조각", "대기", "상태")
+
+
+def _cells(alias: ModelSpec) -> tuple[str, ...]:
     state = "켜짐" if alias.enabled else "꺼짐"
     kinds = ",".join(alias.input_kinds)
     timeout = (
         "기본" if alias.timeout_seconds is None else f"{alias.timeout_seconds:g}초"
     )
-    return (
-        f"{alias.name}\t{alias.provider}\t{alias.provider_model}\t{kinds}"
-        f"\t{timeout}\t{state}"
-    )
+    return (alias.name, alias.provider, alias.provider_model, kinds, timeout, state)

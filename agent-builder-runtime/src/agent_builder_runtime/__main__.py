@@ -40,7 +40,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not rest_of_args:
         # 입력 도구(prompt_toolkit)는 셸을 켤 때만 불러온다.
         from agent_builder_runtime.cli.shell import run_shell
+        from agent_builder_runtime.observability import quiet_logs_for_shell
 
+        quiet_logs_for_shell()
         return run_shell(user)
     return cli.run(rest_of_args)
 

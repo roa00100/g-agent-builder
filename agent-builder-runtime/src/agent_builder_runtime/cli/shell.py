@@ -9,7 +9,8 @@ python -m agent_builder_runtime --user 김재형     (명령 없이 실행하면
 
 연결(DB·Redis·공급자)은 켤 때 한 번 열고 끝낼 때 닫는다 — 명령마다 열지 않는다.
 셸 하나에 세션 id 를 붙이고, 사용자 이름과 함께 모든 로그 줄과 명령의 뿌리 span 에
-남긴다.
+남긴다. 화면에는 WARNING 위의 로그만 찍는다 — LOG_LEVEL 을 직접 주면 그 값
+(입구 __main__ 이 정한다).
 입력 도구(prompt_toolkit)는 이 파일에서만 쓴다.
 """
 
@@ -22,13 +23,15 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.styles import Style
 
 from agent_builder_infra.observability import bind_context, clear_context, get_logger
 from agent_builder_runtime.cli import build_parser, execute
+from agent_builder_runtime.cli.render import BOLD, CYAN, DIM, colored, pad, paint, say
 from agent_builder_runtime.container import close_all
 from agent_builder_runtime.failure_text import (
-    Explanation,
     no_router_yet,
     shell_bad_quotes,
     shell_unexpected,
@@ -40,7 +43,10 @@ log = get_logger(__name__)
 # Ctrl-D 는 EOFError, Ctrl-C 는 KeyboardInterrupt 로 알린다 — prompt_toolkit 과 같다.
 ReadLine = Callable[[str], str]
 
-PROMPT = "> "
+# 프롬프트는 「<사용자> › 」. 이 표시로 끝나면 입력 도구가 이름과 표시를 따로 칠한다.
+PROMPT_MARK = " › "
+# 화면의 세션 id 는 앞 8자만 — 다 보이면 배너가 길다. 전체는 로그 줄·span 에 있다.
+SHORT_ID = 8
 EXIT_WORDS = frozenset({"/exit", "/quit"})
 # 지난 입력. 집 폴더에 둔다 — 친 말이 그대로 남으니 이 PC 사용자만 읽는 곳이어야 한다.
 HISTORY_FILE = Path.home() / ".agent-builder" / "shell_history"
@@ -55,12 +61,12 @@ def run_shell(user: str | None, read_line: ReadLine | None = None) -> int:
     session_id = str(uuid.uuid4())
     bind_context(shell_session_id=session_id, user=user)
     log.info("shell.start")
-    print(f"agent-builder · 사용자 {user} · 세션 {session_id}")
-    print("/help 명령 보기 · /exit 끝내기")
+    _banner(user, session_id)
+    prompt = f"{user}{PROMPT_MARK}"
     try:
         while True:
             try:
-                line = read(PROMPT).strip()
+                line = read(prompt).strip()
             except KeyboardInterrupt:
                 continue
             except EOFError:
@@ -70,12 +76,12 @@ def run_shell(user: str | None, read_line: ReadLine | None = None) -> int:
             if line in EXIT_WORDS:
                 break
             if line == "/help":
-                print(build_parser().format_help())
+                print(_help())
                 continue
             if line.startswith("/"):
                 _command(line[1:], session_id, user)
                 continue
-            _say(no_router_yet(line))
+            say(no_router_yet(line))
     finally:
         log.info("shell.end")
         clear_context()
@@ -87,7 +93,7 @@ def _command(text: str, session_id: str, user: str) -> None:
     try:
         argv = shlex.split(text)
     except ValueError as error:
-        _say(shell_bad_quotes(text, str(error)))
+        say(shell_bad_quotes(text, str(error)))
         return
     try:
         execute(argv, **{"shell.session_id": session_id, "user": user})
@@ -96,7 +102,7 @@ def _command(text: str, session_id: str, user: str) -> None:
         return
     except Exception as error:  # noqa: BLE001 — 한 명령의 실패로 셸을 끄지 않는다
         log.error("shell.command.unexpected", command=text, error=type(error).__name__)
-        _say(shell_unexpected(text, error))
+        say(shell_unexpected(text, error))
 
 
 def _ask_user(read: ReadLine) -> str | None:
@@ -112,8 +118,48 @@ def _ask_user(read: ReadLine) -> str | None:
             return name
 
 
-def _say(explanation: Explanation) -> None:
-    print(explanation.text(), file=sys.stderr)
+# 켤 때 뜨는 로고. 영문 기호만 쓴다 — 한국어 글꼴에서 폭이 애매한 글자(█·╭ 등)는
+# 두 칸으로 그려져 모양이 깨질 수 있어서.
+LOGO = r"""
+   ____    _    ____ ___
+  / ___|  / \  |  _ \_ _|
+ | |  _  / _ \ | | | | |
+ | |_| |/ ___ \| |_| | |
+  \____/_/   \_\____/___|
+"""
+
+
+def _banner(user: str, session_id: str) -> None:
+    on = colored(sys.stdout)
+    print(paint(LOGO.strip("\n"), BOLD, CYAN, on=on))
+    print()
+    print(f"{paint(user, BOLD, CYAN, on=on)}  ·  세션 {session_id[:SHORT_ID]}")
+    print(paint("/help 명령 보기 · /exit 끝내기 · 그냥 말은 고르기로", DIM, on=on))
+
+
+# 셸 자체의 명령. 묶음 명령은 cli 의 파서에서 읽는다.
+_SHELL_COMMANDS = (("/help", "이 목록"), ("/exit · /quit", "끝내기 (Ctrl-D)"))
+# 이름 칸의 폭 — 가장 긴 묶음 이름(/model-provider)보다 조금 넓게.
+_NAME_WIDTH = 19
+
+
+def _help() -> str:
+    """셸의 명령 목록 — 묶음 아래 명령과 한 줄 설명."""
+    on = colored(sys.stdout)
+    lines = [paint("셸 명령", BOLD, on=on)]
+    lines += [f"  {pad(name, _NAME_WIDTH - 2)}{text}" for name, text in _SHELL_COMMANDS]
+    parser = build_parser()
+    for group, text in _help_lines(parser):
+        lines.append("")
+        lines.append(paint(pad(f"/{group}", _NAME_WIDTH), BOLD, CYAN, on=on) + text)
+        for command, command_text in _help_lines(_subcommands(parser)[group]):
+            lines.append(f"  {pad(command, _NAME_WIDTH - 2)}{command_text}")
+    lines += [
+        "",
+        paint("명령 하나의 자세한 인자: /model call --help", DIM, on=on),
+        paint("그냥 말 → 진입점(고르기, 아직 없음)", DIM, on=on),
+    ]
+    return "\n".join(lines)
 
 
 def _prompt_toolkit_reader(history_file: Path = HISTORY_FILE, **io: object) -> ReadLine:
@@ -122,7 +168,19 @@ def _prompt_toolkit_reader(history_file: Path = HISTORY_FILE, **io: object) -> R
     session: PromptSession[str] = PromptSession(
         history=FileHistory(str(history_file)), completer=_completer(), **io
     )
-    return session.prompt
+    style = Style.from_dict({"user": "ansicyan bold", "mark": "ansibrightblack"})
+
+    def read(text: str) -> str:
+        return session.prompt(_styled(text), style=style)
+
+    return read
+
+
+def _styled(text: str) -> FormattedText:
+    if text.endswith(PROMPT_MARK):
+        name = text[: -len(PROMPT_MARK)]
+        return FormattedText([("class:user", name), ("class:mark", PROMPT_MARK)])
+    return FormattedText([("", text)])
 
 
 def _completer() -> "_CommandCompleter":
@@ -155,6 +213,14 @@ class _CommandCompleter(Completer):
         for option in options:
             if option.startswith(typed):
                 yield Completion(option, start_position=-len(typed))
+
+
+def _help_lines(parser) -> list[tuple[str, str]]:
+    """하위 명령의 (이름, 한 줄 설명) — add_parser(help=...) 에 적은 것."""
+    for action in parser._actions:
+        if isinstance(getattr(action, "choices", None), dict):
+            return [(a.dest, a.help or "") for a in action._choices_actions]
+    return []
 
 
 def _subcommands(parser) -> dict:

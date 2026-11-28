@@ -49,6 +49,18 @@ def setup_observability() -> None:
     _ready = True
 
 
+def quiet_logs_for_shell() -> None:
+    """셸 화면에는 WARNING 위의 로그만 찍는다 — 명령 출력 사이에 INFO 줄이 끼지 않게.
+
+    LOG_LEVEL 을 직접 준 사람(.env·환경변수)의 값은 그대로 둔다. 그래서 INFO 를 보고
+    싶으면 LOG_LEVEL=INFO 로 켠다(model.call.done 의 실제 모델·토큰·비용·시간 등).
+    """
+    settings = get_settings()
+    if "log_level" in settings.model_fields_set:
+        return
+    configure_logging("WARNING", settings.log_format)
+
+
 def trace_gateway(gateway: ModelGateway) -> ModelGateway:
     """Gateway 의 complete 를 바꿔 끼운다 — 호출 하나를 span 하나로, 끝을 INFO 한 줄로.
 

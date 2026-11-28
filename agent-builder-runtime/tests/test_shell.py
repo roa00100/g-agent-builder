@@ -71,7 +71,7 @@ def test_runs_commands_until_exit_and_closes_once(calls, capsys):
     # 연결은 끝날 때 한 번만 닫는다.
     assert calls["close_all"] == 1
     out = capsys.readouterr().out
-    assert "사용자 김재형" in out
+    assert "김재형" in out
 
 
 def test_every_command_carries_session_and_user(calls):
@@ -127,7 +127,7 @@ def test_asks_user_when_not_given(calls, capsys):
     shell.run_shell(None, reader)
 
     assert reader.prompts[:2] == ["사용자 이름: ", "사용자 이름: "]
-    assert "사용자 김재형" in capsys.readouterr().out
+    assert "김재형" in capsys.readouterr().out
 
 
 def test_ctrl_d_at_user_question_ends_without_starting(calls):
@@ -184,3 +184,44 @@ def test_real_prompt_toolkit_reads_lines(tmp_path):
 
     # 지난 입력이 파일에 남는다(다음에 켜도 위 화살표로 다시 쓸 수 있게).
     assert "두 번째 줄" in (tmp_path / "history").read_text(encoding="utf-8")
+
+
+def test_help_lists_groups_with_their_commands(calls, capsys):
+    shell.run_shell("u", Lines("/help"))
+
+    out = capsys.readouterr().out
+    assert "/model-provider" in out
+    assert "set-key" in out
+    assert "API 키 넣기" in out
+
+
+def test_prompt_shows_user_name(calls):
+    reader = Lines("/exit")
+
+    shell.run_shell("김재형", reader)
+
+    assert reader.prompts == ["김재형 › "]
+
+
+def test_shell_logs_are_quiet_unless_log_level_is_given(monkeypatch, capsys):
+    from agent_builder_infra.settings import get_settings
+    from agent_builder_runtime.observability import quiet_logs_for_shell
+
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    get_settings.cache_clear()
+    configure_logging("INFO", "json")
+    quiet_logs_for_shell()
+    shell.log.info("shell.test.hidden")
+    shell.log.warning("shell.test.shown")
+
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    get_settings.cache_clear()
+    configure_logging("INFO", "json")
+    quiet_logs_for_shell()
+    shell.log.info("shell.test.kept")
+    get_settings.cache_clear()
+
+    err = capsys.readouterr().err
+    assert "shell.test.hidden" not in err
+    assert "shell.test.shown" in err
+    assert "shell.test.kept" in err

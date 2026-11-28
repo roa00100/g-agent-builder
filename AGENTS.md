@@ -122,8 +122,10 @@
 | 제안 — 설정됨, 사용자 확인 전 | 실패 문장의 구현 모양. runtime `failure_text.py` 한 곳이 실패 → (message·facts·next) 를 만들고, 명령줄은 여러 줄로 찍고 REST 는 본문에 그대로 넣는다(같은 문장). 문장에 필요한 사실을 담으려고 core 예외에 칸을 더했다 — `UnknownModel(name)`·`DisabledModel(name)`·`UnsupportedInput(model, unsupported, accepted)`·`UnknownProvider(name, reason: no_profile·disabled·not_assembled)`·`UnresolvedSource(file_ids)`·`ProviderMismatch(request_id, detail)`·`ModelCallFailed(..., sent=True)`(보내기 전에 막힌 것을 아는 곳만 False — 키 없음·보낼 본문으로 못 바꿈), runtime `MissingApiKey(provider)`·`MissingMasterKey`. 시간 초과·연결 실패는 「닿았는지 확실하지 않다」, 그 밖의 호출 실패는 「공급자가 실패로 답했다」로 쓴다. 입력값 오류는 Pydantic 의 검사 종류를 한국어로 옮기고, 모르는 종류는 원문을 쓴다. REST 에 500 `provider_mismatch` 를 더했고, 명령줄 종료 코드 1 에 설정 문제(마스터 키·API 키)를 넣었다 |
 | 결정 | REST 진입 계층의 웹 프레임워크는 FastAPI 다. 자리는 runtime 의 `rest/` 다 (2026-11-27 사용자가 고름) |
 | 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
+| 결정 | cli 모드에 켜 둔 채로 주고받는 셸을 둔다 — 한 입구에서 `/` 로 시작하면 지금의 명령, 그냥 말은 진입점(고르기)으로 간다. 고르기가 생기기 전까지 말은 「아직 없다」고 답한다. 명령 없이 실행하면 셸이 뜨고, 명령을 주면 지금처럼 한 번 하고 끝난다. 입력은 prompt_toolkit. 셸 세션 하나에 세션 id 를 붙이고, 사용자 이름은 `--user` 로 받거나 없으면 켤 때 묻는다 (2026-11-28 사용자가 고름) |
+| 제안 — 설정됨, 사용자 확인 전 | 셸의 구현 모양. `cli/shell.py` — 묶음은 연결을 닫지 않고, 닫는 것은 한 번 하고 끝나는 `cli.run()` 과 셸의 끝(`cli.execute()` 는 닫지 않는다). 세션 id·사용자는 모든 로그 줄(infra `bind_context`)과 명령마다의 뿌리 span(`shell.session_id`·`user`)에 붙는다 — 아직 DB 기록에는 없다(사람의 손을 남기는 기록이 생길 때 그 줄에 넣는다). 한 명령이 실패해도 셸은 꺼지지 않는다(인자 오류·따옴표 오류·예상 못 한 오류 모두 문장으로 알리고 계속). 지난 입력은 `~/.agent-builder/shell_history` 에 남는다 — 친 말이 그대로 남는다. 자동 완성은 cli 파서에서 읽은 `/묶음 명령`. prompt_toolkit 은 `cli/shell.py` 에서만 쓴다(test_package 가 확인). 진짜 콘솔이 있어야 뜬다 — 파이프·일부 터미널(xterm 흉내)에서는 prompt_toolkit 이 거부한다 |
 | 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
-| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 모델 호출 입구(`model call`·`POST /model/call`)와 관측(로그·추적, 로컬 Jaeger)이 있다. 호출 기록(테이블 `model_call`, `model calls`)이 있다. 테이블은 셋이다(`model_alias`·`model_provider`·`model_call`). 2026-11-28 두 전제(추적 가능성·비개발자의 조합)로 결정을 점검했고, 호출 기록의 본문 저장과 「기록하지 못한 결과는 쓰지 않는다」는 코드에 옮겼다(마이그레이션 4개). 다음은 진입점(고르기) |
+| 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 모델 호출 입구(`model call`·`POST /model/call`)와 관측(로그·추적, 로컬 Jaeger)이 있다. 호출 기록(테이블 `model_call`, `model calls`)이 있다. 테이블은 셋이다(`model_alias`·`model_provider`·`model_call`). 2026-11-28 두 전제(추적 가능성·비개발자의 조합)로 결정을 점검했고, 호출 기록의 본문 저장과 「기록하지 못한 결과는 쓰지 않는다」는 코드에 옮겼다(마이그레이션 4개). cli 모드에 셸이 있다(말은 아직 진입점이 없어 받지 않는다). 다음은 진입점(고르기) |
 
 ## 6. 저장소 구성
 
@@ -199,8 +201,9 @@ agent_builder_runtime/                  계약 구현·조립·진입점
   failure_text.py           실패 → 사람이 읽는 문장(message·facts·next). cli·rest 가 같이 쓴다
   settings.py               실행 설정 — RUNTIME_PROFILE(cli·rest, 기본 cli), REST_HOST·REST_PORT
   __main__.py               입구 — 프로필(--profile 또는 RUNTIME_PROFILE)로 모드만 고른다
-  cli/                      cli 모드 — 명령 하나 실행하고 끝. __init__.run() 이 묶음 파서를 조립
-    <묶음>.py               묶음마다 register()·run(). 계약을 부르기만 한다 (model.py · model_catalog.py · model_provider.py)
+  cli/                      cli 모드 — 명령 하나 실행하고 끝(run) 또는 셸(shell.py). __init__ 이 묶음 파서를 조립하고 execute() 가 명령 하나를 돌린다
+    <묶음>.py               묶음마다 register()·run(). 계약을 부르기만 하고 연결은 닫지 않는다 (model.py · model_catalog.py · model_provider.py)
+    shell.py                셸 — 명령 없이 실행하면 뜬다. /명령은 cli 그대로, 그냥 말은 진입점으로(아직 없음). prompt_toolkit 은 여기에만
   rest/                     rest 모드 — FastAPI 서버. 웹 프레임워크는 여기에만
     __init__.py             create_app()·run() — /health 와 묶음별 라우터, FastAPI 계측(요청 하나 = 뿌리 span)
     <묶음>.py               묶음마다 APIRouter. cli 의 같은 묶음과 같은 일을 한다 (model.py · model_catalog.py · model_provider.py)
@@ -231,6 +234,7 @@ cd agent-builder-core; ..\.venv\Scripts\python -m pytest; cd ..
 cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; ..\.venv\Scripts\python -m pytest; cd ..
 cd agent-builder-runtime; ..\.venv\Scripts\python -m pytest; cd ..
 .venv\Scripts\python -m agent_builder_runtime --help
+.venv\Scripts\python -m agent_builder_runtime --user <이름>   # 셸
 .venv\Scripts\python -m agent_builder_runtime --profile rest
 docker compose run --rm --build app
 ```

@@ -34,6 +34,10 @@
 
 `--inputs` 는 그 모델이 받는 조각(text·image·file)이다. 기본은 `text` 다. 종료 코드는 0 성공, 1 없는 이름, 2 입력값 오류.
 
+### 셸
+
+명령 없이 실행하면 셸이 뜬다 — `..\.venv\Scripts\python -m agent_builder_runtime --user <이름>`. `/` 로 시작하는 줄은 아래 명령과 같고(`/model calls`), 그냥 말은 진입점(고르기)이 생기면 그리로 간다. 연결은 켤 때 열고 끝낼 때 닫는다. 자세한 쓰는 법은 루트 README 의 「셸」.
+
 ### 모델 부르기
 
 ```powershell

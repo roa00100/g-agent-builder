@@ -90,6 +90,29 @@ cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; cd ..
 
 `calls` 는 최근 것부터 한 줄씩 — 시각, request_id, 모델, 실제 모델, 결과(종료 사유 또는 `실패:종류`), 입력/출력 토큰, 비용, 걸린 시간. `call-show` 는 실제 공급사(`upstream_provider`)·실패 내용·본문 위치까지 보이고, `--body` 를 붙이면 본문 넷을 펼친다 — 보낸 문장, 실제로 공급자에 간 본문과 그때의 설정(키 제외), 받은 원문, 다음으로 넘긴 응답.
 
+### 셸 — 켜 둔 채로 계속 쓰기
+
+명령 없이 실행하면 셸이 뜬다. 연결을 한 번 열어 두고 계속 받는다.
+
+```powershell
+.venv\Scripts\python -m agent_builder_runtime --user <이름>
+```
+
+```
+agent-builder · 사용자 <이름> · 세션 <id>
+/help 명령 보기 · /exit 끝내기
+> /model call fast "한 단어로 인사해" --max-tokens 20
+> /model calls
+> /exit
+```
+
+- `/` 로 시작하면 위의 명령과 같다. Tab 으로 `/묶음 명령` 을 자동 완성하고, 위 화살표로 지난 입력을 다시 쓴다.
+- 그냥 말을 치면 진입점(고르기)으로 간다 — 아직 없어서 「아직 없다」고 답한다.
+- `--user` 를 주지 않으면 켤 때 이름을 묻는다. 세션 id 와 이름은 모든 로그 줄과 추적에 붙는다.
+- 끝내기: `/exit`, `/quit`, Ctrl-D(Windows 는 Ctrl-Z 다음 Enter 도 됨). Ctrl-C 는 지금 줄만 지운다. 한 명령이 실패해도 셸은 꺼지지 않는다.
+- 지난 입력은 `~/.agent-builder/shell_history` 에 남는다 — 친 말이 그대로 남는다.
+- PowerShell·cmd 같은 진짜 콘솔에서 띄운다. 파이프나 일부 터미널에서는 뜨지 않는다.
+
 ### 5. 모델 부르기 — rest 모드
 
 ```powershell

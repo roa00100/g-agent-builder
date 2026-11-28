@@ -32,7 +32,7 @@ class FakeProfiles:
 
     def api_key(self, profile: ProviderProfile) -> str:
         if profile.api_key_enc is None:
-            raise MissingApiKey("키 없음")
+            raise MissingApiKey("openrouter")
         return f"key-for-{profile.base_url}"
 
 

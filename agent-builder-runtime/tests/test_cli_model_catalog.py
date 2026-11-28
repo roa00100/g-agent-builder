@@ -28,7 +28,7 @@ def test_set_show_disable_delete(name, capsys):
 
     assert main(["model-catalog", "delete", name]) == 0
     assert main(["model-catalog", "show", name]) == 1
-    assert "대응표에 없는" in capsys.readouterr().err
+    assert "대응표에 모델 이름" in capsys.readouterr().err
 
 
 def test_rejects_bad_inputs(name):

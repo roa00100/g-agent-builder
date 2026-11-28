@@ -18,7 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent_builder_core.contracts.model import UnknownProvider
-from agent_builder_runtime.container import get_provider_profiles
+from agent_builder_infra.services import CipherError
+from agent_builder_runtime.container import MissingMasterKey, get_provider_profiles
+from agent_builder_runtime.failure_text import explain
 from agent_builder_runtime.repositories import (
     ProviderProfile,
     ProviderProfileRepository,
@@ -81,6 +83,10 @@ def put_api_key(name: str, body: ApiKeyBody, profiles: Profiles) -> Response:
         profiles.set_api_key(name, body.api_key)
     except UnknownProvider as error:
         raise _not_found(name) from error
+    except (MissingMasterKey, CipherError) as error:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, explain(error, "manage").as_dict()
+        ) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -119,4 +125,7 @@ def _view(profile: ProviderProfile) -> ProviderView:
 
 
 def _not_found(name: str) -> HTTPException:
-    return HTTPException(status.HTTP_404_NOT_FOUND, f"공급자 프로필이 없다: {name}")
+    return HTTPException(
+        status.HTTP_404_NOT_FOUND,
+        explain(UnknownProvider(name, "no_profile"), "manage").as_dict(),
+    )

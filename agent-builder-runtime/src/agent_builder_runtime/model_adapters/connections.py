@@ -37,6 +37,9 @@ class ProviderConnection:
     connection: Connection
     # 공급자 프로필의 기본 대기 시간. 모델별 덮어쓰기는 부르는 쪽이 고른다.
     timeout_seconds: float
+    # 그때의 설정 사본(추적)에 남기는 값 — 어느 주소로, 프로필의 어느 판으로 보냈나.
+    base_url: str
+    profile_updated_at: datetime
 
 
 class ProviderConnections:
@@ -52,9 +55,9 @@ class ProviderConnections:
         """없거나 꺼진 공급자면 UnknownProvider, 키가 없으면 MissingApiKey."""
         profile = self._profiles.get(name)
         if profile is None:
-            raise UnknownProvider(f"공급자 프로필이 없다: {name}")
+            raise UnknownProvider(name, "no_profile")
         if not profile.enabled:
-            raise UnknownProvider(f"꺼 둔 공급자: {name}")
+            raise UnknownProvider(name, "disabled")
         opened = self._open.get(name)
         if opened is None or opened[0] != profile.updated_at:
             # 처음 여는지, 프로필이 바뀌어 다시 여는지 남긴다.
@@ -69,7 +72,12 @@ class ProviderConnections:
                 profile.base_url, self._profiles.api_key(profile)
             )
             self._open[name] = (profile.updated_at, connection)
-        return ProviderConnection(self._open[name][1], profile.timeout_seconds)
+        return ProviderConnection(
+            self._open[name][1],
+            timeout_seconds=profile.timeout_seconds,
+            base_url=profile.base_url,
+            profile_updated_at=profile.updated_at,
+        )
 
     def close_all(self) -> None:
         for _, connection in self._open.values():

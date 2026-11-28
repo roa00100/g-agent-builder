@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent_builder_core.contracts.model import (
+    CallNotRecorded,
     CallRecord,
     DisabledModel,
     ModelCallFailed,
@@ -92,10 +93,10 @@ def test_cli_max_tokens_is_required(use_gateway):
 @pytest.mark.parametrize(
     ("error", "code"),
     [
-        (UnknownModel("없음"), 1),
-        (DisabledModel("꺼짐"), 1),
-        (UnknownProvider("공급자 없음"), 1),
-        (UnsupportedInput("이미지 못 받음"), 2),
+        (UnknownModel("nosuch"), 1),
+        (DisabledModel("fast"), 1),
+        (UnknownProvider("openrouter", "no_profile"), 1),
+        (UnsupportedInput("fast", ("image",), ("text",)), 2),
         (ModelCallFailed("rate_limited", "req-1", "잠시 뒤에"), 3),
     ],
 )
@@ -105,8 +106,9 @@ def test_cli_errors_become_exit_codes(use_gateway, capsys, error, code):
     assert main(["model", "call", "fast", "x", "--max-tokens", "10"]) == code
     if code == 3:
         err = capsys.readouterr().err
-        assert "rate_limited" in err
-        assert "다시 보내 볼 만함" in err
+        assert "호출 한도를 넘었다" in err
+        assert "다시 보내 볼 만합니다" in err
+        assert "model call-show req-1 --body" in err
 
 
 def test_cli_rejects_bad_max_tokens(use_gateway):
@@ -147,10 +149,10 @@ def test_rest_call_returns_model_response():
 @pytest.mark.parametrize(
     ("error", "status"),
     [
-        (UnknownModel("없음"), 404),
-        (DisabledModel("꺼짐"), 409),
-        (UnsupportedInput("이미지 못 받음"), 422),
-        (UnknownProvider("공급자 없음"), 503),
+        (UnknownModel("nosuch"), 404),
+        (DisabledModel("fast"), 409),
+        (UnsupportedInput("fast", ("image",), ("text",)), 422),
+        (UnknownProvider("openrouter", "no_profile"), 503),
     ],
 )
 def test_rest_errors_become_status(error, status):
@@ -165,12 +167,19 @@ def test_rest_call_failure_is_502_with_kind():
         response = client.post("/model/call", json=REQUEST)
 
     assert response.status_code == 502
-    assert response.json() == {
+    body = response.json()
+    assert {
+        k: body[k] for k in ("kind", "retryable", "sent", "detail", "request_id")
+    } == {
         "kind": "timeout",
         "retryable": True,
+        "sent": True,
         "detail": "느림",
         "request_id": "req-9",
     }
+    # 사람이 읽는 문장도 같이 온다 (명령줄과 같은 문장).
+    assert body["message"].startswith("답을 받지 못했습니다")
+    assert "원인 — 느림" in body["facts"]
 
 
 def test_rest_rejects_bad_request_shape():
@@ -214,6 +223,12 @@ class FakeLog:
 
     def record(self, record: CallRecord) -> None:
         self.records.append(record)
+
+    def save_body(self, request_id: str, name: str, content: dict) -> str:
+        return f"{request_id}/{name}"
+
+    def read_body(self, key: str) -> dict | None:
+        return None
 
     def get(self, request_id: str) -> CallRecord | None:
         return next((r for r in self.records if r.request_id == request_id), None)
@@ -274,3 +289,71 @@ def test_rest_calls_and_one_call():
     assert one.json()["failure_kind"] == "timeout"
     assert missing.status_code == 404
     assert bad.status_code == 422
+
+
+# --- 기록하지 못한 결과 · 본문 보기 ---
+
+
+def test_cli_not_recorded_is_exit_4(use_gateway, capsys):
+    error = CallNotRecorded("req-3", "response", sent=True, detail="스토리지 끊김")
+    use_gateway(FakeGateway(error=error))
+
+    assert main(["model", "call", "fast", "x", "--max-tokens", "10"]) == 4
+    err = capsys.readouterr().err
+    assert "답을 받았지만 기록을 남기지 못해 쓰지 않았습니다" in err
+    assert "비용이 들었을 수 있습니다" in err
+    assert "req-3" in err
+
+
+def test_rest_not_recorded_is_503_with_stage():
+    error = CallNotRecorded("req-4", "request", sent=False, detail="스토리지 끊김")
+
+    with rest(FakeGateway(error=error)) as client:
+        response = client.post("/model/call", json=REQUEST)
+
+    assert response.status_code == 503
+    body = response.json()
+    assert {k: body[k] for k in ("kind", "stage", "sent", "detail", "request_id")} == {
+        "kind": "not_recorded",
+        "stage": "request",
+        "sent": False,
+        "detail": "스토리지 끊김",
+        "request_id": "req-4",
+    }
+    assert body["message"] == "호출하지 않았습니다 — 기록 저장소에 쓸 수 없습니다."
+
+
+WITH_BODIES = RECORD.model_copy(
+    update={"request_id": "r-9", "bodies": {"request": "k/request"}}
+)
+
+
+class BodyLog(FakeLog):
+    def save_body(self, request_id, name, content):
+        return f"k/{name}"
+
+    def read_body(self, key):
+        return {"보낸": "말"} if key == "k/request" else None
+
+
+def test_cli_call_show_with_body(use_log, capsys):
+    use_log(BodyLog(WITH_BODIES))
+
+    assert main(["model", "call-show", "r-9", "--body"]) == 0
+    out = capsys.readouterr().out
+    assert "--- request (k/request) ---" in out
+    assert '"보낸": "말"' in out
+
+
+def test_rest_call_body():
+    app = create_app()
+    app.dependency_overrides[get_call_log] = lambda: BodyLog(WITH_BODIES)
+
+    with TestClient(app) as client:
+        found = client.get("/model/calls/r-9/bodies/request")
+        missing = client.get("/model/calls/r-9/bodies/response")
+        bad_name = client.get("/model/calls/r-9/bodies/nope")
+
+    assert found.json() == {"보낸": "말"}
+    assert missing.status_code == 404
+    assert bad_name.status_code == 422

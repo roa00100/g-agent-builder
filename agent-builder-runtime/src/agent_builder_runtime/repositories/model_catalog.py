@@ -76,7 +76,7 @@ class ModelCatalogRepository:
         with self._db.session_scope() as session:
             row = crud.find_by_id(session, ModelAliasRow, name)
             if row is None:
-                raise UnknownModel(f"대응표에 없는 모델 이름: {name}")
+                raise UnknownModel(name)
             crud.update(session, row, enabled=enabled)
         self._invalidate(name)
 

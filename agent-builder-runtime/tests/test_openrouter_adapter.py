@@ -5,6 +5,7 @@
 
 import base64
 import json
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -86,11 +87,41 @@ class FakeConnections:
         self.asked.append(name)
         if self._error is not None:
             raise self._error
-        return ProviderConnection(self._connection, timeout_seconds=30)
+        return ProviderConnection(
+            self._connection,
+            timeout_seconds=30,
+            base_url="https://openrouter.test/api/v1",
+            profile_updated_at=datetime(2026, 11, 28, tzinfo=UTC),
+        )
 
 
-def run(req: ModelRequest, connection: FakeConnection, spec: ModelSpec = SPEC):
-    return OpenRouterAdapter(FakeConnections(connection)).complete(req, spec)
+class Journal:
+    """남긴 본문을 순서대로 모은다.
+
+    보내기 전에 남겼는지 보려고, 남길 때 연결이 이미 보낸 수도 적는다.
+    """
+
+    def __init__(self, connection=None) -> None:
+        self.entries: list[tuple] = []
+        self._connection = connection
+
+    def sending(self, payload: dict, settings: dict) -> None:
+        sent_before = len(self._connection.payloads) if self._connection else None
+        self.entries.append(("sending", payload, settings, sent_before))
+
+    def received(self, body: dict) -> None:
+        self.entries.append(("received", body))
+
+
+def run(
+    req: ModelRequest,
+    connection: FakeConnection,
+    spec: ModelSpec = SPEC,
+    journal: Journal | None = None,
+):
+    return OpenRouterAdapter(FakeConnections(connection)).complete(
+        req, spec, journal or Journal()
+    )
 
 
 def test_fills_contract():
@@ -111,27 +142,27 @@ def test_uses_profile_timeout_unless_model_overrides():
 def test_asks_for_its_own_provider_name():
     connections = FakeConnections(FakeConnection(body()))
 
-    OpenRouterAdapter(connections).complete(request(), SPEC)
+    OpenRouterAdapter(connections).complete(request(), SPEC, Journal())
 
     assert connections.asked == ["openrouter"]
 
 
 def test_missing_api_key_is_auth_failure():
     req = request()
-    connections = FakeConnections(None, error=MissingApiKey("키 없음"))
+    connections = FakeConnections(None, error=MissingApiKey("openrouter"))
 
     with pytest.raises(ModelCallFailed) as raised:
-        OpenRouterAdapter(connections).complete(req, SPEC)
+        OpenRouterAdapter(connections).complete(req, SPEC, Journal())
 
     assert raised.value.kind == "auth"
     assert raised.value.retryable is False
 
 
 def test_unknown_or_disabled_provider_passes_through():
-    connections = FakeConnections(None, error=UnknownProvider("꺼 둔 공급자"))
+    connections = FakeConnections(None, error=UnknownProvider("openrouter", "disabled"))
 
     with pytest.raises(UnknownProvider):
-        OpenRouterAdapter(connections).complete(request(), SPEC)
+        OpenRouterAdapter(connections).complete(request(), SPEC, Journal())
 
 
 # --- 요청 ---
@@ -422,3 +453,63 @@ def test_tool_arguments_not_json_is_failure():
 
     with pytest.raises(ModelCallFailed, match="JSON"):
         run(request(), FakeConnection(body(message, finish_reason="tool_calls")))
+
+
+# --- 본문 남기기 (추적) ---
+
+
+def test_journal_gets_payload_and_settings_before_sending_then_raw_body():
+    raw = body(provider="OpenAI")
+    connection = FakeConnection(raw)
+    journal = Journal(connection)
+
+    run(request(), connection, journal=journal)
+
+    (kind, payload, settings, sent_before), (kind2, received) = journal.entries
+    assert (kind, kind2) == ("sending", "received")
+    # 보내기 전에 남겼다.
+    assert sent_before == 0
+    assert payload == connection.payloads[0]
+    assert settings == {
+        "provider": "openrouter",
+        "base_url": "https://openrouter.test/api/v1",
+        "timeout_seconds": 30,
+        "timeout_from": "provider",
+        "profile_updated_at": "2026-11-28T00:00:00+00:00",
+    }
+    # 바꾸기 전 원문 그대로.
+    assert received is raw
+
+
+def test_journal_gets_error_body_on_failure():
+    error = OpenRouterCallError("http", "잘못된 모델", status_code=400, body={"x": 1})
+    journal = Journal()
+
+    with pytest.raises(ModelCallFailed):
+        run(request(), FakeConnection(error=error), journal=journal)
+
+    assert journal.entries[-1] == (
+        "received",
+        {
+            "error": {
+                "reason": "http",
+                "status_code": 400,
+                "detail": "잘못된 모델",
+                "body": {"x": 1},
+            }
+        },
+    )
+
+
+def test_not_recorded_before_sending_means_nothing_is_sent():
+    from agent_builder_core.contracts.model import CallNotRecorded
+
+    class Broken(Journal):
+        def sending(self, payload, settings):
+            raise CallNotRecorded("r", "sending", sent=False, detail="스토리지 끊김")
+
+    connection = FakeConnection(body())
+
+    with pytest.raises(CallNotRecorded):
+        run(request(), connection, journal=Broken())
+    assert connection.payloads == []

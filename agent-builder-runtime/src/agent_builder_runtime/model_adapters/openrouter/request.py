@@ -127,6 +127,7 @@ def _to_part(part: ContentPart, request: ModelRequest) -> dict[str, Any]:
                 request.request_id,
                 "OpenRouter 로는 파일을 주소(url)로 보낼 수 없다 — "
                 "내용(inline)으로 보낸다",
+                sent=False,
             )
         raise _stored_source_reached(request)
     raise TypeError(f"모르는 조각: {part!r}")

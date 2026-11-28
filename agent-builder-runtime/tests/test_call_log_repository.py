@@ -19,13 +19,13 @@ FUTURE = datetime(2100, 1, 1, tzinfo=UTC)
 
 
 @pytest.fixture
-def log(db):
-    return CallLogRepository(db)
+def log(db, object_storage):
+    return CallLogRepository(db, object_storage)
 
 
 @pytest.fixture
-def ids(db):
-    """테스트마다 새 request_id 를 쓰고, 끝나면 그 줄을 지운다."""
+def ids(db, object_storage):
+    """테스트마다 새 request_id 를 쓰고, 끝나면 그 줄과 본문을 지운다."""
     made: list[str] = []
 
     def new() -> str:
@@ -35,6 +35,8 @@ def ids(db):
     yield new
     for request_id in made:
         db.execute("delete from model_call where request_id = :id", {"id": request_id})
+        for key in object_storage.list_keys(f"model_call/{request_id}/"):
+            object_storage.delete(key)
 
 
 def ok(request_id: str, **changes) -> CallRecord:
@@ -115,3 +117,31 @@ def test_same_request_id_twice_fails(log, ids):
 
     with pytest.raises(IntegrityError):
         log.record(ok(request_id))
+
+
+def test_body_round_trip_keeps_korean_and_odd_values(log, ids):
+    request_id = ids()
+    content = {"text": "안녕", "nested": {"n": 1.5}, "odd": Decimal("0.1")}
+
+    key = log.save_body(request_id, "received", content)
+
+    assert key == f"model_call/{request_id}/received.json"
+    # JSON 으로 바로 못 적는 값(Decimal)은 글자로 남는다.
+    assert log.read_body(key) == {"text": "안녕", "nested": {"n": 1.5}, "odd": "0.1"}
+
+
+def test_unknown_body_is_none(log, ids):
+    assert log.read_body(f"model_call/{ids()}/request.json") is None
+
+
+def test_record_keeps_body_keys(log, ids):
+    request_id = ids()
+    keys = {
+        "request": log.save_body(request_id, "request", {"a": 1}),
+        "response": log.save_body(request_id, "response", {"b": 2}),
+    }
+
+    log.record(ok(request_id, bodies=keys))
+
+    assert log.get(request_id).bodies == keys
+    assert log.list(1)[0].bodies == keys

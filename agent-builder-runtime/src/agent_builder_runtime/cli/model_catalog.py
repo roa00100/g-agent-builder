@@ -23,6 +23,7 @@ from agent_builder_core.contracts.model import (
     UnknownModel,
 )
 from agent_builder_runtime.container import close_all, get_model_catalog
+from agent_builder_runtime.failure_text import explain
 
 # 종료 코드. 0 성공, 1 없는 이름, 2 입력값이 모양에 맞지 않음(argparse 의 관례와 같다).
 EXIT_UNKNOWN = 1
@@ -69,7 +70,7 @@ def run(args: argparse.Namespace) -> int:
         elif args.command == "show":
             alias = catalog.get(args.name)
             if alias is None:
-                raise UnknownModel(f"대응표에 없는 모델 이름: {args.name}")
+                raise UnknownModel(args.name)
             print(alias.model_dump_json(indent=2))
         elif args.command == "set":
             alias = ModelSpec(
@@ -86,13 +87,13 @@ def run(args: argparse.Namespace) -> int:
             print(_line(catalog.get(args.name)))
         elif args.command == "delete":
             if not catalog.delete(args.name):
-                raise UnknownModel(f"대응표에 없는 모델 이름: {args.name}")
+                raise UnknownModel(args.name)
             print(f"지움: {args.name}")
     except UnknownModel as error:
-        print(error, file=sys.stderr)
+        print(explain(error, "manage").text(), file=sys.stderr)
         return EXIT_UNKNOWN
     except ValidationError as error:
-        print(error, file=sys.stderr)
+        print(explain(error, "manage").text(), file=sys.stderr)
         return EXIT_INVALID
     finally:
         close_all()

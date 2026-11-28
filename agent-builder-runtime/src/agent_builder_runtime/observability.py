@@ -5,7 +5,7 @@ core 에는 추적 코드가 없다. 여기서 바깥을 감싸 어떤 클래스
 """
 
 from agent_builder_core.contracts.model import (
-    CallRecord,
+    CallNotRecorded,
     DisabledModel,
     ModelCallFailed,
     ModelRequest,
@@ -49,19 +49,6 @@ def setup_observability() -> None:
     _ready = True
 
 
-def report_record_error(record: CallRecord, error: Exception) -> None:
-    """Gateway 가 기록에 실패했을 때 부른다. 호출은 살리고, 빠진 기록을 ERROR 로 남긴다.
-
-    빠진 한 줄을 나중에 손으로 채울 수 있게 기록의 숫자를 함께 남긴다.
-    """
-    log.error(
-        "model.call.record_failed",
-        error=type(error).__name__,
-        detail=str(error),
-        record=record.model_dump(mode="json"),
-    )
-
-
 def trace_gateway(gateway: ModelGateway) -> ModelGateway:
     """Gateway 의 complete 를 바꿔 끼운다 — 호출 하나를 span 하나로, 끝을 INFO 한 줄로.
 
@@ -89,6 +76,20 @@ def trace_gateway(gateway: ModelGateway) -> ModelGateway:
                     **ids,
                     kind=error.kind,
                     retryable=error.retryable,
+                    detail=error.detail,
+                )
+                raise
+            except CallNotRecorded as error:
+                # 추적에 필요한 것을 남기지 못해 결과를 버렸다.
+                # sent 면 돈을 썼을 수 있다.
+                set_attributes(
+                    **{"model.not_recorded": error.stage, "model.sent": error.sent}
+                )
+                log.error(
+                    "model.call.not_recorded",
+                    **ids,
+                    stage=error.stage,
+                    sent=error.sent,
                     detail=error.detail,
                 )
                 raise

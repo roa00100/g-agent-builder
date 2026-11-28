@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict
 
 from agent_builder_core.contracts.model import ModelCatalog, ModelSpec, UnknownModel
 from agent_builder_runtime.container import get_model_catalog
+from agent_builder_runtime.failure_text import NOTHING_CHANGED, Explanation, explain
 
 router = APIRouter(prefix="/model-catalog", tags=["model-catalog"])
 
@@ -48,7 +49,11 @@ def put_spec(name: str, spec: ModelSpec, catalog: Catalog) -> ModelSpec:
     if spec.name != name:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"경로의 이름({name})과 본문의 이름({spec.name})이 다르다",
+            Explanation(
+                "바꾸지 않았습니다 — 경로의 이름과 본문의 이름이 다릅니다.",
+                (f"경로: 「{name}」, 본문의 name: 「{spec.name}」", NOTHING_CHANGED),
+                ("둘을 같은 이름으로 맞춰 다시 보냅니다.",),
+            ).as_dict(),
         )
     catalog.upsert(spec)
     return spec
@@ -71,4 +76,6 @@ def delete_spec(name: str, catalog: Catalog) -> Response:
 
 
 def _not_found(name: str) -> HTTPException:
-    return HTTPException(status.HTTP_404_NOT_FOUND, f"대응표에 없는 모델 이름: {name}")
+    return HTTPException(
+        status.HTTP_404_NOT_FOUND, explain(UnknownModel(name), "manage").as_dict()
+    )

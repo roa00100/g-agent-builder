@@ -33,6 +33,10 @@ log = get_logger(__name__)
 class MissingApiKey(RuntimeError):
     """공급자 프로필에 API 키를 아직 넣지 않았다."""
 
+    def __init__(self, provider: str) -> None:
+        super().__init__(f"공급자 「{provider}」 의 프로필에 API 키가 없다")
+        self.provider = provider
+
 
 class ProviderProfile(BaseModel):
     """프로필 한 줄. 캐시(Redis)에 담는 것도 이것이다 — 키는 암호문 그대로."""
@@ -98,7 +102,7 @@ class ProviderProfileRepository:
     def api_key(self, profile: ProviderProfile) -> str:
         """키를 푼다. 보낼 때만 부른다. 키가 없으면 MissingApiKey."""
         if profile.api_key_enc is None:
-            raise MissingApiKey(f"공급자 {profile.name} 에 API 키가 없다")
+            raise MissingApiKey(profile.name)
         return self._cipher().decrypt(profile.api_key_enc)
 
     # --- 고치기 ---
@@ -145,7 +149,7 @@ class ProviderProfileRepository:
         with self._db.session_scope() as session:
             row = crud.find_by_id(session, ModelProviderRow, name)
             if row is None:
-                raise UnknownProvider(f"공급자 프로필이 없다: {name}")
+                raise UnknownProvider(name, "no_profile")
             crud.update(session, row, **values)
         self._invalidate(name)
 

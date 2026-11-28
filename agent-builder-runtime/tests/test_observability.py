@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from agent_builder_core.contracts.model import (
+    CallNotRecorded,
     ModelCallFailed,
     ModelCatalog,
     ModelRequest,
@@ -56,9 +57,11 @@ class FakeProvider:
     def __init__(self, error=None):
         self._error = error
 
-    def complete(self, request, spec):
+    def complete(self, request, spec, journal):
+        journal.sending({}, {})
         if self._error is not None:
             raise self._error
+        journal.received({})
         return ModelResponse(
             request_id=request.request_id,
             model=request.model,
@@ -72,8 +75,21 @@ class FakeProvider:
 
 
 class NoLog:
+    """기록은 받기만 한다. broken 이면 본문을 남길 때 실패한다."""
+
+    def __init__(self, broken=False):
+        self._broken = broken
+
     def record(self, record):
         pass
+
+    def save_body(self, request_id, name, content):
+        if self._broken:
+            raise ConnectionError("스토리지 끊김")
+        return f"{request_id}/{name}"
+
+    def read_body(self, key):
+        return None
 
     def get(self, request_id):
         return None
@@ -82,8 +98,8 @@ class NoLog:
         return []
 
 
-def make_gateway(catalog, providers) -> ModelGateway:
-    return ModelGateway(catalog, providers, NoLog(), lambda record, error: None)
+def make_gateway(catalog, providers, log=None) -> ModelGateway:
+    return ModelGateway(catalog, providers, log or NoLog())
 
 
 def request(text="보낼 말"):
@@ -220,30 +236,17 @@ def test_rejected_before_sending_is_told_apart_from_other_errors(
     assert [(line["event"], line["level"]) for line in logged] == [(event, level)]
 
 
-def test_record_failure_is_one_error_line_with_the_numbers(capsys):
-    from datetime import UTC, datetime
-
-    from agent_builder_core.contracts.model import CallRecord
-    from agent_builder_runtime.observability import report_record_error
-
+def test_not_recorded_is_one_error_line(capsys):
     configure_logging("INFO", "json")
-    record = CallRecord(
-        request_id="r-1",
-        model="fast",
-        provider="fake",
-        provider_model="m",
-        status="ok",
-        finish_reason="stop",
-        input_tokens=1,
-        output_tokens=2,
-        cost="0.1",
-        latency_ms=3,
-        started_at=datetime.now(UTC),
+    gateway = trace_gateway(
+        make_gateway(OneModel(), {"fake": FakeProvider()}, NoLog(broken=True))
     )
 
-    report_record_error(record, ConnectionError("DB 끊김"))
+    with pytest.raises(CallNotRecorded):
+        gateway.complete(request())
 
     (line,) = lines(capsys.readouterr().err)
-    assert (line["event"], line["level"]) == ("model.call.record_failed", "error")
-    assert line["error"] == "ConnectionError"
-    assert line["record"]["cost"] == "0.1"
+    assert (line["event"], line["level"]) == ("model.call.not_recorded", "error")
+    assert (line["stage"], line["sent"]) == ("request", False)
+    finished = SPANS.get_finished_spans()[0]
+    assert finished.attributes["model.not_recorded"] == "request"

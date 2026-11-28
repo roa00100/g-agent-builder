@@ -19,7 +19,13 @@ import sys
 from pydantic import ValidationError
 
 from agent_builder_core.contracts.model import UnknownProvider
-from agent_builder_runtime.container import close_all, get_provider_profiles
+from agent_builder_infra.services import CipherError
+from agent_builder_runtime.container import (
+    MissingMasterKey,
+    close_all,
+    get_provider_profiles,
+)
+from agent_builder_runtime.failure_text import explain
 from agent_builder_runtime.repositories import ProviderProfile
 
 # 종료 코드. 0 성공, 1 없는 공급자, 2 입력값이 맞지 않음.
@@ -66,7 +72,7 @@ def run(args: argparse.Namespace) -> int:
         elif args.command == "show":
             profile = profiles.get(args.name)
             if profile is None:
-                raise UnknownProvider(f"공급자 프로필이 없다: {args.name}")
+                raise UnknownProvider(args.name, "no_profile")
             print(_detail(profile))
         elif args.command == "set":
             profiles.save(
@@ -86,13 +92,13 @@ def run(args: argparse.Namespace) -> int:
             print(_line(profiles.get(args.name)))
         elif args.command == "delete":
             if not profiles.delete(args.name):
-                raise UnknownProvider(f"공급자 프로필이 없다: {args.name}")
+                raise UnknownProvider(args.name, "no_profile")
             print(f"지움: {args.name}")
-    except UnknownProvider as error:
-        print(error, file=sys.stderr)
+    except (UnknownProvider, MissingMasterKey, CipherError) as error:
+        print(explain(error, "manage").text(), file=sys.stderr)
         return EXIT_UNKNOWN
     except (ValidationError, ValueError) as error:
-        print(error, file=sys.stderr)
+        print(explain(error, "manage").text(), file=sys.stderr)
         return EXIT_INVALID
     finally:
         close_all()

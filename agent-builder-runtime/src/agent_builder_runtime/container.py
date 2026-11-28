@@ -26,7 +26,7 @@ from agent_builder_runtime.model_adapters import (
     OpenRouterAdapter,
     ProviderConnections,
 )
-from agent_builder_runtime.observability import report_record_error, trace_gateway
+from agent_builder_runtime.observability import trace_gateway
 from agent_builder_runtime.repositories import (
     CallLogRepository,
     ModelCatalogRepository,
@@ -84,8 +84,14 @@ def get_model_catalog() -> ModelCatalog:
 def get_call_log() -> CallLog:
     """core 의 CallLog 를 채우는 구현 — 호출 기록. 메서드마다 span 을 연다."""
     return traced(
-        CallLogRepository(get_db()), "CallLogRepository", ("record", "get", "list")
+        CallLogRepository(get_db(), get_object_storage()),
+        "CallLogRepository",
+        ("record", "save_body", "read_body", "get", "list"),
     )
+
+
+class MissingMasterKey(RuntimeError):
+    """마스터 키(SECRET_ENCRYPTION_KEY)가 설정되어 있지 않다."""
 
 
 @lru_cache
@@ -93,7 +99,7 @@ def get_cipher() -> FernetCipher:
     """비밀 값 암호화. 마스터 키(SECRET_ENCRYPTION_KEY)가 있어야 한다."""
     key = get_settings().secret_encryption_key
     if key is None:
-        raise RuntimeError("SECRET_ENCRYPTION_KEY 가 없다 — .env 에 적는다")
+        raise MissingMasterKey("SECRET_ENCRYPTION_KEY 가 없다 — .env 에 적는다")
     return FernetCipher(key.get_secret_value())
 
 
@@ -138,7 +144,6 @@ def get_model_gateway() -> ModelGateway:
         get_model_catalog(),
         {openrouter.name: openrouter},
         get_call_log(),
-        on_record_error=report_record_error,
     )
     return trace_gateway(gateway)
 

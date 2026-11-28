@@ -124,6 +124,8 @@
 | 결정 | 프로필을 주지 않으면 cli 모드로 돈다 (2026-11-27 사용자가 고름) |
 | 결정 | cli 모드에 켜 둔 채로 주고받는 셸을 둔다 — 한 입구에서 `/` 로 시작하면 지금의 명령, 그냥 말은 진입점(고르기)으로 간다. 고르기가 생기기 전까지 말은 「아직 없다」고 답한다. 명령 없이 실행하면 셸이 뜨고, 명령을 주면 지금처럼 한 번 하고 끝난다. 입력은 prompt_toolkit. 셸 세션 하나에 세션 id 를 붙이고, 사용자 이름은 `--user` 로 받거나 없으면 켤 때 묻는다 (2026-11-28 사용자가 고름) |
 | 제안 — 설정됨, 사용자 확인 전 | 셸의 구현 모양. `cli/shell.py` — 묶음은 연결을 닫지 않고, 닫는 것은 한 번 하고 끝나는 `cli.run()` 과 셸의 끝(`cli.execute()` 는 닫지 않는다). 세션 id·사용자는 모든 로그 줄(infra `bind_context`)과 명령마다의 뿌리 span(`shell.session_id`·`user`)에 붙는다 — 아직 DB 기록에는 없다(사람의 손을 남기는 기록이 생길 때 그 줄에 넣는다). 한 명령이 실패해도 셸은 꺼지지 않는다(인자 오류·따옴표 오류·예상 못 한 오류 모두 문장으로 알리고 계속). 지난 입력은 `~/.agent-builder/shell_history` 에 남는다 — 친 말이 그대로 남는다. 자동 완성은 cli 파서에서 읽은 `/묶음 명령`. prompt_toolkit 은 `cli/shell.py` 에서만 쓴다(test_package 가 확인). 진짜 콘솔이 있어야 뜬다 — 파이프·일부 터미널(xterm 흉내)에서는 prompt_toolkit 이 거부한다 |
+| 결정 | 셸·명령 출력의 꾸밈 (2026-11-28 사용자가 고름) — ① 켤 때 GADI ASCII 로고와 사용자·세션 id 앞 8자 ② 프롬프트 `<사용자> › `(이름은 청록) ③ 목록(`model-catalog list`·`model-provider list`·`model calls`)은 화면이면 머리줄 있는 표, 파이프면 지금의 탭 줄 ④ `/help` 는 묶음 아래 명령과 한 줄 설명 ⑤ 실패 문장은 화면에서 색·들여쓰기(문장 자체는 그대로) ⑥ 셸 화면의 로그는 WARNING 위만 — `LOG_LEVEL` 을 직접 주면 그 값 |
+| 제안 — 설정됨, 사용자 확인 전 | 꾸밈의 구현 모양. runtime `cli/render.py` 한 곳이 표·실패 문장의 자리와 색을 정한다 — ANSI 이스케이프를 직접 쓰고(prompt_toolkit 은 셸 프롬프트에만), 화면(isatty)일 때만 꾸민다. `NO_COLOR` 가 있으면 자리만 맞추고 색은 뺀다(prompt_toolkit 도 같은 관례). 한글은 두 칸으로 센다(표준 라이브러리 unicodedata). 사실(facts)은 흐리게 하지 않았다 — 고를 때의 예시와 다르다. 로고는 영문 기호만 — █·╭ 같은 폭이 애매한 글자는 한국어 글꼴에서 깨질 수 있어서. 셸 화면은 runtime `quiet_logs_for_shell()` 이 입구에서 WARNING 으로 낮춘다 |
 | 결정 | 프로필은 `--profile` 인자와 환경변수 `RUNTIME_PROFILE` 둘 다로 받고, 인자가 환경변수를 이긴다 (2026-11-27 사용자가 고름) |
 | 진행 단계 | W0 이전 — core 에 모델 계약(`contracts/model/` — 대응표·요청·응답·내용 조각), infra 에 기술 구성(설정, Postgres·Redis·오브젝트 스토리지의 프로바이더·서비스, CRUD, 테이블 정의 — 사용자 지시로 에이전트가 작성), runtime 에 모델 대응표 Repository·조립·명령줄이 있고, core 의 개념 패키지 셋은 비어 있다. 모델 호출 경로(ModelGateway → OpenRouterAdapter)와 공급자 프로필(DB, 키는 암호문)이 있다. 파일 계약(`FileStore`)과 보조 고리는 아직 없다. 모델 호출 입구(`model call`·`POST /model/call`)와 관측(로그·추적, 로컬 Jaeger)이 있다. 호출 기록(테이블 `model_call`, `model calls`)이 있다. 테이블은 셋이다(`model_alias`·`model_provider`·`model_call`). 2026-11-28 두 전제(추적 가능성·비개발자의 조합)로 결정을 점검했고, 호출 기록의 본문 저장과 「기록하지 못한 결과는 쓰지 않는다」는 코드에 옮겼다(마이그레이션 4개). cli 모드에 셸이 있다(말은 아직 진입점이 없어 받지 않는다). 다음은 진입점(고르기) |
 
@@ -203,6 +205,7 @@ agent_builder_runtime/                  계약 구현·조립·진입점
   __main__.py               입구 — 프로필(--profile 또는 RUNTIME_PROFILE)로 모드만 고른다
   cli/                      cli 모드 — 명령 하나 실행하고 끝(run) 또는 셸(shell.py). __init__ 이 묶음 파서를 조립하고 execute() 가 명령 하나를 돌린다
     <묶음>.py               묶음마다 register()·run(). 계약을 부르기만 하고 연결은 닫지 않는다 (model.py · model_catalog.py · model_provider.py)
+    render.py               출력의 모양 — 화면이면 표·실패 문장의 색, 파이프면 지금까지의 모양 그대로. 문장은 만들지 않는다
     shell.py                셸 — 명령 없이 실행하면 뜬다. /명령은 cli 그대로, 그냥 말은 진입점으로(아직 없음). prompt_toolkit 은 여기에만
   rest/                     rest 모드 — FastAPI 서버. 웹 프레임워크는 여기에만
     __init__.py             create_app()·run() — /health 와 묶음별 라우터, FastAPI 계측(요청 하나 = 뿌리 span)

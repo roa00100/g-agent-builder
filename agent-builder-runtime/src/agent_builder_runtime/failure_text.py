@@ -166,6 +166,42 @@ def invalid_option(option: str, value: object, rule: str) -> Explanation:
     )
 
 
+def no_router_yet(text: str) -> Explanation:
+    """셸에 말을 쳤는데 진입점(고르기)이 아직 없을 때."""
+    return Explanation(
+        "실행하지 않았습니다 — 말로 조립을 고르는 진입점이 아직 없습니다.",
+        (f"받은 말: {text!r}", NOT_SENT),
+        (
+            '명령은 / 로 시작합니다: /model call fast "할 말" --max-tokens 200',
+            "명령 목록: /help",
+        ),
+    )
+
+
+def shell_bad_quotes(text: str, detail: str) -> Explanation:
+    return Explanation(
+        "실행하지 않았습니다 — 명령의 따옴표가 맞지 않습니다.",
+        (f"받은 명령: /{text}", f"원인 — {detail}", NOTHING_CHANGED),
+        ('따옴표를 닫아 다시 칩니다. 예: /model call fast "할 말" --max-tokens 200',),
+    )
+
+
+def shell_unexpected(text: str, error: Exception) -> Explanation:
+    """셸에서 한 명령이 예상하지 못한 오류로 끝났을 때. 셸은 계속 켜져 있다."""
+    return Explanation(
+        "명령을 끝내지 못했습니다 — 예상하지 못한 오류가 났습니다.",
+        (
+            f"받은 명령: /{text}",
+            f"오류: {type(error).__name__} — {error}",
+            "어디까지 했는지는 알 수 없습니다. 셸은 계속 켜져 있습니다.",
+        ),
+        (
+            "/exit 로 끝낸 뒤 같은 명령을 한 번 하고 끝나는 방식으로 실행하면 "
+            f"자세한 내용(트레이스백)이 보입니다: {CLI} <묶음> <명령>",
+        ),
+    )
+
+
 def no_call_record(request_id: str) -> Explanation:
     return Explanation(
         f"호출 기록 「{request_id}」 이 없습니다.",

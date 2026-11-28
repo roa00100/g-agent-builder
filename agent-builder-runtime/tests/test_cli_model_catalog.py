@@ -38,5 +38,9 @@ def test_rejects_bad_inputs(name):
 
 
 def test_group_is_required(capsys):
+    # 명령 없이 main 을 부르면 셸이 뜬다.
+    # 한 번 하고 끝나는 실행에는 묶음이 꼭 있어야 한다.
+    from agent_builder_runtime import cli
+
     with pytest.raises(SystemExit):
-        main([])
+        cli.run([])

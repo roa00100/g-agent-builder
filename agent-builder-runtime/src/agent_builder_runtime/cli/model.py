@@ -32,7 +32,6 @@ from agent_builder_core.model import ProviderMismatch, UnresolvedSource
 from agent_builder_infra.services import CipherError
 from agent_builder_runtime.container import (
     MissingMasterKey,
-    close_all,
     get_call_log,
     get_model_gateway,
 )
@@ -82,29 +81,26 @@ def register(groups: argparse._SubParsersAction) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    try:
-        if args.command == "call":
-            return _call(args)
-        if args.command == "calls":
-            if args.limit < 1:
-                _say(invalid_option("--limit", args.limit, "1 이상이어야 합니다."))
-                return EXIT_INVALID
-            for record in get_call_log().list(args.limit):
-                print(_line(record))
-            return 0
-        record = get_call_log().get(args.request_id)
-        if record is None:
-            _say(no_call_record(args.request_id))
-            return EXIT_UNKNOWN
-        print(record.model_dump_json(indent=2))
-        if args.body:
-            for name, key in record.bodies.items():
-                print(f"\n--- {name} ({key}) ---")
-                body = get_call_log().read_body(key)
-                print(json.dumps(body, ensure_ascii=False, indent=2))
+    if args.command == "call":
+        return _call(args)
+    if args.command == "calls":
+        if args.limit < 1:
+            _say(invalid_option("--limit", args.limit, "1 이상이어야 합니다."))
+            return EXIT_INVALID
+        for record in get_call_log().list(args.limit):
+            print(_line(record))
         return 0
-    finally:
-        close_all()
+    record = get_call_log().get(args.request_id)
+    if record is None:
+        _say(no_call_record(args.request_id))
+        return EXIT_UNKNOWN
+    print(record.model_dump_json(indent=2))
+    if args.body:
+        for name, key in record.bodies.items():
+            print(f"\n--- {name} ({key}) ---")
+            body = get_call_log().read_body(key)
+            print(json.dumps(body, ensure_ascii=False, indent=2))
+    return 0
 
 
 # 실패 → 종료 코드. 위에서부터 먼저 맞는 것을 쓴다.

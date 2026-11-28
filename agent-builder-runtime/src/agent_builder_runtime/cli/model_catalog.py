@@ -22,7 +22,7 @@ from agent_builder_core.contracts.model import (
     ModelSpec,
     UnknownModel,
 )
-from agent_builder_runtime.container import close_all, get_model_catalog
+from agent_builder_runtime.container import get_model_catalog
 from agent_builder_runtime.failure_text import explain
 
 # 종료 코드. 0 성공, 1 없는 이름, 2 입력값이 모양에 맞지 않음(argparse 의 관례와 같다).
@@ -95,8 +95,6 @@ def run(args: argparse.Namespace) -> int:
     except ValidationError as error:
         print(explain(error, "manage").text(), file=sys.stderr)
         return EXIT_INVALID
-    finally:
-        close_all()
     return 0
 
 

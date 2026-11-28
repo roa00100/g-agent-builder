@@ -20,6 +20,7 @@ def test_default_is_cli(monkeypatch):
     monkeypatch.setattr(get_runtime_settings(), "runtime_profile", "cli", raising=False)
     assert _pick_profile(["model-catalog", "list"]) == (
         "cli",
+        None,
         ["model-catalog", "list"],
     )
 
@@ -28,7 +29,7 @@ def test_env_picks_profile(monkeypatch):
     monkeypatch.setenv("RUNTIME_PROFILE", "rest")
     get_runtime_settings.cache_clear()
 
-    assert _pick_profile([]) == ("rest", [])
+    assert _pick_profile([]) == ("rest", None, [])
 
 
 def test_flag_beats_env(monkeypatch):
@@ -37,7 +38,15 @@ def test_flag_beats_env(monkeypatch):
 
     assert _pick_profile(["--profile", "cli", "model-catalog", "list"]) == (
         "cli",
+        None,
         ["model-catalog", "list"],
+    )
+
+
+def test_user_is_read_before_the_command():
+    assert _pick_profile(["--user", "김재형", "model", "calls"])[1:] == (
+        "김재형",
+        ["model", "calls"],
     )
 
 

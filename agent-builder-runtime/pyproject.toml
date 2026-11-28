@@ -15,6 +15,9 @@ dependencies = [
     # REST 모드. 웹 프레임워크는 runtime 의 rest/ 에서만 쓴다.
     # 하한은 설치해 실제로 서버를 띄워 확인한 버전이다.
     "fastapi>=0.165",
+    # cli 모드의 셸 입력(지난 입력 다시 쓰기·자동 완성·Windows 한글 입력). cli/shell.py 에서만 쓴다.
+    # 하한은 설치해 실제로 셸을 띄워 확인한 버전이다.
+    "prompt_toolkit>=3.0.53",
     "uvicorn>=0.54",
     # REST 요청을 추적의 시작점으로 잡는다. rest/ 에서만 쓴다. 계측 패키지는 베타로만 나온다.
     "opentelemetry-instrumentation-fastapi>=0.66b2",

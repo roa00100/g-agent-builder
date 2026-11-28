@@ -25,6 +25,8 @@ import pytest
         "agent_builder_runtime.cli.model",
         "agent_builder_runtime.cli.model_catalog",
         "agent_builder_runtime.cli.model_provider",
+        "agent_builder_runtime.cli.shell",
+        "agent_builder_runtime.failure_text",
         "agent_builder_runtime.rest",
         "agent_builder_runtime.rest.model",
         "agent_builder_runtime.rest.model_catalog",
@@ -107,6 +109,28 @@ def test_observability_technology_only_through_infra():
                 elif name.split(".")[0] == "opentelemetry" and not (
                     in_rest and name.startswith("opentelemetry.instrumentation.fastapi")
                 ):
+                    found.append(f"{path.name}: {name}")
+
+    assert found == []
+
+
+def test_prompt_toolkit_only_in_shell():
+    # 셸의 입력 도구는 cli/shell.py 에서만 쓴다.
+    import agent_builder_runtime
+
+    src = Path(agent_builder_runtime.__file__).parent
+    found = []
+    for path in src.rglob("*.py"):
+        if path.relative_to(src).parts == ("cli", "shell.py"):
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            for name in names:
+                if name.split(".")[0] == "prompt_toolkit":
                     found.append(f"{path.name}: {name}")
 
     assert found == []

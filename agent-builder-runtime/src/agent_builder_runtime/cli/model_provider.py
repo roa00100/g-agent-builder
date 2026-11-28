@@ -22,7 +22,6 @@ from agent_builder_core.contracts.model import UnknownProvider
 from agent_builder_infra.services import CipherError
 from agent_builder_runtime.container import (
     MissingMasterKey,
-    close_all,
     get_provider_profiles,
 )
 from agent_builder_runtime.failure_text import explain
@@ -100,8 +99,6 @@ def run(args: argparse.Namespace) -> int:
     except (ValidationError, ValueError) as error:
         print(explain(error, "manage").text(), file=sys.stderr)
         return EXIT_INVALID
-    finally:
-        close_all()
     return 0
 
 

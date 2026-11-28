@@ -36,7 +36,7 @@
 - 미정인 것은 사용자 몫이다. 5절의 「미정」 항목에 답이 나오기 전에 그 부분의 구조를 정하지 않는다. (handoff 6절의 Q1~Q7 은 답이 났거나 다른 것으로 대신했다 — 5절 참고.)
 - handoff 2절의 교훈을 어기는 방향이면 그 ID 를 대고 말한다.
 
-## 4. 구조 원칙 (handoff 5절에서 출발 — 1·3 은 사용자 결정으로 바뀌었고, 2·4 는 아직 제안)
+## 4. 구조 원칙 (handoff 5절에서 출발 — 1·3 은 사용자가 바꿨고, 2·4 는 에이전트 안을 2026-11-28 사용자가 결정으로 받음)
 
 낱말: 이 절의 「workflow」는 5절의 「조립」, 「단계」는 「칸」과 같은 것을 가리킨다.
 
@@ -56,7 +56,7 @@
 ## 5. 현재 상태
 
 기록은 이 절 한 장으로 유지한다. 작업 일지를 쌓지 않는다(E16). 지금 유효한 것만 적고, 바뀐 경위는 git 이력에 맡긴다.
-표시가 없는 줄은 사용자의 결정이다. 「제안」이 붙은 줄은 에이전트의 안이고 사용자 확인 전이다.
+표시가 없는 줄은 사용자의 결정이다. 「제안」이 붙은 줄은 에이전트의 안이고 사용자 확인 전이다(지금은 없다).
 
 ### 진행
 
@@ -78,7 +78,7 @@
 - 웹 프레임워크는 FastAPI 이고 runtime 의 `rest/` 에서만 쓴다.
 - 모델은 프로바이더 형태로 공급자를 고른다. 첫 공급자는 OpenRouter 이고 `openai` SDK 로 부른다(주소만 바꿔 쓴다).
 - 사용자가 직접 쓰는 것은 기본 구조 코드다. 밑바탕까지 전부 직접 쓰지 않으며, 쓸 수 있는 오픈소스는 적극 검토한다. 지금까지의 코드는 건마다 사용자가 골라 에이전트가 쓰고 사용자가 검토했다.
-- 제안 — 로컬은 docker compose, DB 접근은 SQLAlchemy 2 + psycopg 3(동기), 스키마 변경은 Alembic, 설정은 pydantic-settings + `.env`, 데이터 모양은 Pydantic v2. Redis 8 은 AOF(`appendfsync always`), 클라이언트는 redis-py. 스토리지는 S3 API 로만 말하고(boto3), 파일 정보는 Postgres·내용은 SeaweedFS.
+- 로컬은 docker compose, DB 접근은 SQLAlchemy 2 + psycopg 3(동기), 스키마 변경은 Alembic, 설정은 pydantic-settings + `.env`, 데이터 모양은 Pydantic v2. Redis 8 은 AOF(`appendfsync always`), 클라이언트는 redis-py. 스토리지는 S3 API 로만 말하고(boto3), 파일 정보는 Postgres·내용은 SeaweedFS. (에이전트 안을 2026-11-28 사용자가 결정으로 받음)
 
 ### 패키지와 층 (배치의 세부는 6절)
 
@@ -89,7 +89,7 @@
 - 입구(cli·rest)에는 번역만 두고, 여러 계약 호출을 엮는 순서는 서비스에 둔다. 두 입구는 같은 서비스를 부른다.
 - 실행 모드는 프로필(cli·rest)로 고른다 — `--profile` 이 환경변수 `RUNTIME_PROFILE` 을 이기고, 주지 않으면 cli 다.
 - LangGraph 는 runtime 에 둔다. core 는 조립 정의와 실행 상태의 계약만 갖고, runtime 이 조립 정의를 그래프로 바꿔 돌린다.
-- 제안 — 이름은 core 를 유지한다(kernel 로 바꾸지 않음).
+- 이름은 core 를 유지한다(kernel 로 바꾸지 않음). (에이전트 안을 2026-11-28 사용자가 결정으로 받음)
 
 ### 모델 호출
 
@@ -101,7 +101,7 @@
 - 대응표(`ModelCatalog`·`ModelSpec`)와 공급자 프로필(주소·API 키·대기 시간)은 Postgres 에 두고 Redis 에 캐싱한다. 고칠 때 캐시를 같이 지운다. API 키는 공급자 행에 하나, Fernet 으로 암호화해 두고(캐시에도 암호문) 마스터 키만 환경변수에 둔다. core 는 키를 모른다. 대기 시간은 공급자 기본값을 모델별로 덮어쓸 수 있다.
 - 관측 — 추적은 OpenTelemetry, 로그는 structlog. 단계는 TRACE·DEBUG·INFO·WARNING·ERROR(INFO 흐름 요약, DEBUG 갈림길과 모양, TRACE 오간 데이터 전체·기본 꺼짐). 비밀은 어느 단계에서도 지운다. core 에는 추적 코드를 넣지 않는다. 로컬 추적 화면은 Jaeger.
 - 실패 문장 — 사람이 읽는 문장은 경우를 나눠 사실대로 자세히 쓴다(무엇을 했고 왜인가, 보냈는가·비용이 들었을 수 있는가, 다음에 할 일). 기계가 읽는 이름(kind·로그 이벤트)은 바꾸지 않는다.
-- 제안 — 관측·호출 기록·실패 문장·셸·출력 꾸밈의 구현 모양(코드에 있다: `observability/`, `contracts/model/record.py`, `failure_text.py`, `cli/shell.py`, `cli/render.py`).
+- 관측·호출 기록·실패 문장·셸·출력 꾸밈의 구현 모양은 지금 코드에 있는 대로다(`observability/`, `contracts/model/record.py`, `failure_text.py`, `cli/shell.py`, `cli/render.py`). (에이전트 안을 2026-11-28 사용자가 결정으로 받음)
 
 ### 추적 가능성 — 절대 전제
 

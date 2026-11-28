@@ -108,6 +108,18 @@ def get_logger(name: str) -> Logger:
     return Logger(name)
 
 
+def bind_context(**fields: Any) -> None:
+    """지금 흐름(스레드·태스크)의 모든 로그 줄에 이 값을 붙인다.
+
+    예: 셸의 세션 id·사용자.
+    """
+    structlog.contextvars.bind_contextvars(**fields)
+
+
+def clear_context() -> None:
+    structlog.contextvars.clear_contextvars()
+
+
 def redact(value: Any) -> Any:
     """dict·list 를 훑어 비밀 키의 값을 지운다. 원본은 바꾸지 않는다."""
     if isinstance(value, Mapping):

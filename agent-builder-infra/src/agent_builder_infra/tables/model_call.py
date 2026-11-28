@@ -2,7 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import get_args
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, Numeric, Text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, Numeric, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agent_builder_core.contracts.model import CallStatus, FailureKind, FinishReason
@@ -72,3 +73,8 @@ class ModelCallRow(Base):
     run_id: Mapped[str | None] = mapped_column(Text)
     step_id: Mapped[str | None] = mapped_column(Text)
     attempt: Mapped[int | None] = mapped_column(Integer)
+    # 남긴 본문의 위치 — 이름(request·sending·received·response) → 오브젝트 스토리지 키.
+    # 본문 자체는 DB 에 두지 않는다 — 이미지·파일 조각까지 담기면 무거워서.
+    bodies: Mapped[dict[str, str]] = mapped_column(
+        JSONB, server_default=text("'{}'::jsonb")
+    )

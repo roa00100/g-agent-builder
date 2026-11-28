@@ -40,9 +40,9 @@
 ..\.venv\Scripts\python -m agent_builder_runtime model call fast "안녕" --max-tokens 50
 ```
 
-답은 stdout 에 찍는다. 실제 모델·토큰·비용·걸린 시간은 stderr 의 INFO 로그 `model.call.done` 에 있다. 종료 코드는 0 성공, 1 없거나 꺼진 모델·공급자, 2 입력값 오류, 3 호출 실패. REST 는 `POST /model/call`.
+답은 stdout 에 찍는다. 실제 모델·토큰·비용·걸린 시간은 stderr 의 INFO 로그 `model.call.done` 에 있다. 종료 코드는 0 성공, 1 없거나 꺼진 모델·공급자 또는 빠진 설정(마스터 키·API 키), 2 입력값 오류, 3 호출 실패(공급자 구현의 결함 포함), 4 기록을 남기지 못해 결과를 쓰지 않음. 실패 문장은 `failure_text.py` 가 만들고 REST 본문에도 같은 문장(`message`·`facts`·`next`)이 들어간다. REST 는 `POST /model/call`.
 
-호출 기록은 `model calls --limit 20`(최근 것부터)·`model call-show <request_id>` 로 본다.
+호출 기록은 `model calls --limit 20`(최근 것부터)·`model call-show <request_id> [--body]` 로 본다. 본문은 오브젝트 스토리지 `model_call/<request_id>/` 아래에 있다.
 
 ### 공급자 프로필 (키는 어디에도 찍히지 않는다)
 
@@ -73,6 +73,7 @@
 | `POST /model/call` | 모델 부르기. 본문은 `ModelRequest` |
 | `GET /model/calls?limit=20` | 호출 기록, 최근 것부터 (limit 1~500) |
 | `GET /model/calls/{request_id}` | 호출 기록 한 줄 — 없으면 404 |
+| `GET /model/calls/{request_id}/bodies/{name}` | 남긴 본문 하나 (request·sending·received·response) — 없으면 404 |
 | `GET /model-provider`, `GET /model-provider/{name}` | 공급자 프로필 (키는 `has_api_key` 로 있음·없음만) |
 | `PUT /model-provider/{name}` | 주소·대기 시간 넣거나 바꾸기 |
 | `PUT /model-provider/{name}/api-key` | API 키 넣기 — 응답에 키 없음(204) |

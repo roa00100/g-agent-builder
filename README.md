@@ -67,11 +67,12 @@ cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; cd ..
 | 종료 코드 | 뜻 |
 |---|---|
 | 0 | 성공 |
-| 1 | 없거나 꺼진 모델·공급자 |
+| 1 | 없거나 꺼진 모델·공급자, 빠진 설정(마스터 키·API 키) |
 | 2 | 입력값 오류 (예: `--max-tokens 0`) |
-| 3 | 호출 실패 (시간 초과·인증·한도 등) |
+| 3 | 호출 실패 (시간 초과·인증·한도 등, 공급자 구현의 결함) |
+| 4 | 기록을 남기지 못해 결과를 버림 — 추적할 수 없는 답은 쓰지 않는다 |
 
-돈이 들지 않는 실패 확인:
+실패하면 stderr 에 무엇을 했고(또는 하지 않았고) 왜인지, 보냈는지·비용이 들었을 수 있는지·무엇이 남았는지, 다음에 할 명령을 적는다. 돈이 들지 않는 실패 확인:
 
 ```powershell
 .venv\Scripts\python -m agent_builder_runtime model call nosuch "hi" --max-tokens 10; $LASTEXITCODE
@@ -79,14 +80,15 @@ cd agent-builder-infra; ..\.venv\Scripts\alembic upgrade head; cd ..
 
 ### 호출 기록 보기
 
-공급자에 보낸 호출은 성공이든 실패든 한 줄씩 Postgres(`model_call`)에 남는다. 위의 `nosuch` 처럼 보내기 전에 막힌 것은 남지 않는다. 보낸 문장과 받은 답은 남기지 않는다.
+공급자에 보낸 호출은 성공이든 실패든 한 줄씩 Postgres(`model_call`)에 남는다. 위의 `nosuch` 처럼 보내기 전에 막힌 것은 남지 않는다. 오간 본문 넷(request·sending·received·response)은 오브젝트 스토리지에 남고, 줄에는 그 위치가 있다. 기록이나 본문을 남기지 못하면 답을 쓰지 않는다(종료 코드 4).
 
 ```powershell
 .venv\Scripts\python -m agent_builder_runtime model calls --limit 20
 .venv\Scripts\python -m agent_builder_runtime model call-show <request_id>
+.venv\Scripts\python -m agent_builder_runtime model call-show <request_id> --body
 ```
 
-`calls` 는 최근 것부터 한 줄씩 — 시각, request_id, 모델, 실제 모델, 결과(종료 사유 또는 `실패:종류`), 입력/출력 토큰, 비용, 걸린 시간. `call-show` 는 실제 공급사(`upstream_provider`)·실패 내용까지 전부 보인다. 기록에 실패해도 답은 그대로 받고, ERROR 로그 `model.call.record_failed` 에 빠진 줄의 숫자가 남는다.
+`calls` 는 최근 것부터 한 줄씩 — 시각, request_id, 모델, 실제 모델, 결과(종료 사유 또는 `실패:종류`), 입력/출력 토큰, 비용, 걸린 시간. `call-show` 는 실제 공급사(`upstream_provider`)·실패 내용·본문 위치까지 보이고, `--body` 를 붙이면 본문 넷을 펼친다 — 보낸 문장, 실제로 공급자에 간 본문과 그때의 설정(키 제외), 받은 원문, 다음으로 넘긴 응답.
 
 ### 5. 모델 부르기 — rest 모드
 
@@ -100,7 +102,7 @@ http://127.0.0.1:8000/docs 에서 경로를 보고 시험할 수 있다. 다른 
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/model/call -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes('{"model":"fast","messages":[{"role":"user","content":"안녕"}],"params":{"max_output_tokens":20}}'))
 ```
 
-기록은 `GET /model/calls?limit=20`·`GET /model/calls/{request_id}` 로 본다. 실패는 404(없는 모델)·409(꺼진 모델)·422(요청 모양·받지 않는 내용)·503(공급자 없음)·502(호출 실패, 본문에 kind·retryable)로 돌려준다. 인증이 아직 없어 이 PC 에서만 붙는다.
+기록은 `GET /model/calls?limit=20`·`GET /model/calls/{request_id}`·`GET /model/calls/{request_id}/bodies/{name}` 로 본다. 기록을 남기지 못하면 503(`kind: not_recorded`). 실패 본문에는 늘 명령줄과 같은 문장이 `message`·`facts`·`next` 로 들어 있다. 실패는 404(없는 모델)·409(꺼진 모델)·422(요청 모양·받지 않는 내용)·503(공급자 없음)·502(호출 실패, 본문에 kind·retryable)로 돌려준다. 인증이 아직 없어 이 PC 에서만 붙는다.
 
 ### 6. 로그 보기
 

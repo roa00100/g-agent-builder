@@ -96,11 +96,19 @@ class ModelCallFailed(Exception):
     finish_reason="content_filter" 인 응답이다.
     """
 
-    def __init__(self, kind: FailureKind, request_id: str, detail: str) -> None:
+    def __init__(
+        self, kind: FailureKind, request_id: str, detail: str, *, sent: bool = True
+    ) -> None:
+        """sent: 공급자에 닿았을 수 있는가.
+
+        보내기 전에 막힌 것을 아는 쪽만 False 를 준다(키가 없음, 보낼 본문으로
+        바꾸지 못함 등). 모르면 「닿았을 수 있다」가 사실이라 기본값이 True 다.
+        """
         super().__init__(f"[{kind}] {detail} (request_id={request_id})")
         self.kind: FailureKind = kind
         self.request_id = request_id
         self.detail = detail
+        self.sent = sent
 
     @property
     def retryable(self) -> bool:

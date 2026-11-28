@@ -20,8 +20,19 @@ from agent_builder_core.contracts.model.content import (
     TextPart,
     UrlSource,
 )
-from agent_builder_core.contracts.model.provider import ModelProvider, UnknownProvider
-from agent_builder_core.contracts.model.record import CallLog, CallRecord, CallStatus
+from agent_builder_core.contracts.model.provider import (
+    ModelProvider,
+    UnknownProvider,
+    UnknownProviderReason,
+)
+from agent_builder_core.contracts.model.record import (
+    BodyName,
+    CallJournal,
+    CallLog,
+    CallNotRecorded,
+    CallRecord,
+    CallStatus,
+)
 from agent_builder_core.contracts.model.request import (
     GenerationParams,
     Message,
@@ -44,6 +55,10 @@ from agent_builder_core.contracts.model.response import (
 )
 
 __all__ = [
+    "UnknownProviderReason",
+    "BodyName",
+    "CallJournal",
+    "CallNotRecorded",
     "CallLog",
     "CallRecord",
     "CallStatus",

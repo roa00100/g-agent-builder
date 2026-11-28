@@ -3,7 +3,9 @@
 import pytest
 
 from agent_builder_core.contracts.model import (
+    CallJournal,
     CallLog,
+    CallNotRecorded,
     CallRecord,
     DisabledModel,
     ModelCallFailed,
@@ -36,10 +38,16 @@ class FakeProvider:
         self._fail = fail
         self._changes = response_changes
 
-    def complete(self, request: ModelRequest, spec: ModelSpec) -> ModelResponse:
+    def complete(
+        self, request: ModelRequest, spec: ModelSpec, journal: CallJournal
+    ) -> ModelResponse:
+        # 실제 구현처럼 보내기 직전과 받은 직후에 본문을 남긴다.
+        journal.sending({"model": spec.provider_model}, {"base_url": "https://x.dev"})
         self.calls.append((request, spec))
         if self._fail is not None:
+            journal.received({"error": self._fail.detail})
             raise self._fail
+        journal.received({"raw": "답"})
         values = {
             "request_id": request.request_id,
             "model": request.model,
@@ -72,17 +80,33 @@ def request(content="안녕") -> ModelRequest:
 
 
 class MemoryLog:
-    """남긴 기록을 모은다. broken 이면 남길 때 실패한다."""
+    """남긴 기록과 본문을 모은다.
 
-    def __init__(self, broken: bool = False) -> None:
+    broken_record 면 줄을 남길 때, broken_bodies 에 든 이름의 본문을 남길 때 실패한다.
+    """
+
+    def __init__(
+        self, broken_record: bool = False, broken_bodies: tuple[str, ...] = ()
+    ) -> None:
         self.records: list[CallRecord] = []
-        self.errors: list[tuple[CallRecord, Exception]] = []
-        self._broken = broken
+        self.bodies: dict[str, dict] = {}
+        self._broken_record = broken_record
+        self._broken_bodies = broken_bodies
 
     def record(self, record: CallRecord) -> None:
-        if self._broken:
+        if self._broken_record:
             raise ConnectionError("DB 끊김")
         self.records.append(record)
+
+    def save_body(self, request_id: str, name: str, content: dict) -> str:
+        if name in self._broken_bodies:
+            raise ConnectionError("스토리지 끊김")
+        key = f"{request_id}/{name}"
+        self.bodies[key] = content
+        return key
+
+    def read_body(self, key: str) -> dict | None:
+        return self.bodies.get(key)
 
     def get(self, request_id: str) -> CallRecord | None:
         return next((r for r in self.records if r.request_id == request_id), None)
@@ -90,20 +114,12 @@ class MemoryLog:
     def list(self, limit: int) -> list[CallRecord]:
         return self.records[::-1][:limit]
 
-    def on_error(self, record: CallRecord, error: Exception) -> None:
-        self.errors.append((record, error))
-
 
 def gateway(
     provider: FakeProvider, *specs: ModelSpec, log: MemoryLog | None = None
 ) -> ModelGateway:
     log = log if log is not None else MemoryLog()
-    return ModelGateway(
-        Catalog(*(specs or (spec(),))),
-        {provider.name: provider},
-        log,
-        log.on_error,
-    )
+    return ModelGateway(Catalog(*(specs or (spec(),))), {provider.name: provider}, log)
 
 
 def test_fake_provider_fills_contract():
@@ -132,13 +148,14 @@ def test_sends_to_provider_named_by_spec():
 def test_blocks_before_sending(specs, error):
     provider = FakeProvider()
     log = MemoryLog()
-    gw = ModelGateway(Catalog(*specs), {provider.name: provider}, log, log.on_error)
+    gw = ModelGateway(Catalog(*specs), {provider.name: provider}, log)
 
     with pytest.raises(error):
         gw.complete(request())
     assert provider.calls == []
     # 보내기 전에 막힌 것은 기록하지 않는다.
     assert log.records == []
+    assert log.bodies == {}
 
 
 def test_blocks_unsupported_input():
@@ -198,6 +215,8 @@ def test_rejects_response_for_another_request(changes):
         "unknown",
     )
     assert record.input_tokens is None
+    # 숫자 대신 받은 원문이 본문으로 남는다.
+    assert log.read_body(record.bodies["received"]) == {"raw": "답"}
 
 
 # --- 기록 ---
@@ -266,21 +285,97 @@ def test_run_context_is_copied_to_record():
     assert (record.run_id, record.step_id, record.attempt) == ("run-1", "step-2", 3)
 
 
-def test_record_failure_keeps_the_response_and_is_reported():
-    log = MemoryLog(broken=True)
+def test_success_keeps_all_four_bodies():
+    log = MemoryLog()
+    sent = request("안녕")
 
-    response = gateway(FakeProvider(), log=log).complete(request())
+    gateway(FakeProvider(), log=log).complete(sent)
 
-    assert response.text() == "답"
-    ((record, error),) = log.errors
-    assert record.status == "ok"
-    assert isinstance(error, ConnectionError)
+    record = log.records[0]
+    assert set(record.bodies) == {"request", "sending", "received", "response"}
+    stored = log.read_body(record.bodies["request"])
+    # 계약의 요청과, 그때 쓴 대응표 줄의 사본.
+    assert stored["request"]["messages"][0]["content"][0]["text"] == "안녕"
+    assert stored["spec"]["provider_model"] == "vendor/model-a"
+    assert log.read_body(record.bodies["sending"])["settings"] == {
+        "base_url": "https://x.dev"
+    }
+    assert log.read_body(record.bodies["response"])["request_id"] == sent.request_id
 
 
-def test_record_failure_does_not_hide_the_call_failure():
-    log = MemoryLog(broken=True)
+def test_failure_keeps_request_and_error_body():
+    log = MemoryLog()
     provider = FakeProvider(fail=ModelCallFailed("auth", "x", "키 틀림"))
 
     with pytest.raises(ModelCallFailed):
         gateway(provider, log=log).complete(request())
-    assert log.errors[0][0].failure_kind == "auth"
+
+    record = log.records[0]
+    assert set(record.bodies) == {"request", "sending", "received"}
+    assert log.read_body(record.bodies["received"]) == {"error": "키 틀림"}
+
+
+def test_request_body_not_saved_means_not_sent():
+    log = MemoryLog(broken_bodies=("request",))
+    provider = FakeProvider()
+
+    with pytest.raises(CallNotRecorded) as raised:
+        gateway(provider, log=log).complete(request())
+
+    assert (raised.value.stage, raised.value.sent) == ("request", False)
+    assert provider.calls == []
+    assert log.records == []
+
+
+def test_sending_body_not_saved_means_not_sent():
+    log = MemoryLog(broken_bodies=("sending",))
+    provider = FakeProvider()
+
+    with pytest.raises(CallNotRecorded) as raised:
+        gateway(provider, log=log).complete(request())
+
+    assert (raised.value.stage, raised.value.sent) == ("sending", False)
+    assert provider.calls == []
+    assert log.records == []
+
+
+def test_received_body_not_saved_drops_the_answer_but_keeps_a_failed_line():
+    log = MemoryLog(broken_bodies=("received",))
+
+    with pytest.raises(CallNotRecorded) as raised:
+        gateway(FakeProvider(), log=log).complete(request())
+
+    assert (raised.value.stage, raised.value.sent) == ("received", True)
+    # 돈을 썼을 수 있으니 숫자 없는 실패 줄이라도 남는다.
+    (record,) = log.records
+    assert (record.status, record.failure_kind) == ("failed", "unknown")
+    assert set(record.bodies) == {"request", "sending"}
+
+
+def test_response_body_not_saved_drops_the_answer():
+    log = MemoryLog(broken_bodies=("response",))
+
+    with pytest.raises(CallNotRecorded) as raised:
+        gateway(FakeProvider(), log=log).complete(request())
+
+    assert (raised.value.stage, raised.value.sent) == ("response", True)
+
+
+def test_record_not_saved_drops_the_answer():
+    log = MemoryLog(broken_record=True)
+
+    with pytest.raises(CallNotRecorded) as raised:
+        gateway(FakeProvider(), log=log).complete(request())
+
+    assert (raised.value.stage, raised.value.sent) == ("record", True)
+
+
+def test_record_not_saved_on_call_failure_is_also_not_recorded():
+    log = MemoryLog(broken_record=True)
+    provider = FakeProvider(fail=ModelCallFailed("auth", "x", "키 틀림"))
+
+    # 호출 실패를 기록하지 못해도 「기록 못 함」으로 알린다.
+    # 기록 실패의 원인은 그 안(__cause__)에 남는다.
+    with pytest.raises(CallNotRecorded) as raised:
+        gateway(provider, log=log).complete(request())
+    assert isinstance(raised.value.__cause__, ConnectionError)

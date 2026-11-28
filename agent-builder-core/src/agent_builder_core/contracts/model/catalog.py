@@ -34,13 +34,32 @@ class ModelSpec(Envelope):
 class UnknownModel(LookupError):
     """대응표에 없는 논리 이름. 기본 모델로 넘기지 않는다."""
 
+    def __init__(self, name: str) -> None:
+        super().__init__(f"대응표에 모델 이름 「{name}」 이 없다")
+        self.name = name
+
 
 class DisabledModel(LookupError):
     """대응표에 있지만 꺼 둔 논리 이름."""
 
+    def __init__(self, name: str) -> None:
+        super().__init__(f"모델 「{name}」 은 대응표에 있지만 꺼져 있다")
+        self.name = name
+
 
 class UnsupportedInput(ValueError):
     """모델이 받지 않는 내용 종류가 요청에 들어 있다. 몰래 빼지 않는다."""
+
+    def __init__(
+        self, model: str, unsupported: tuple[str, ...], accepted: tuple[str, ...]
+    ) -> None:
+        super().__init__(
+            f"모델 「{model}」 은 {', '.join(accepted)} 만 받는데, 요청에 "
+            f"{', '.join(unsupported)} 이 들어 있다"
+        )
+        self.model = model
+        self.unsupported = unsupported
+        self.accepted = accepted
 
 
 @runtime_checkable
@@ -72,9 +91,9 @@ def resolve_model(catalog: ModelCatalog, name: str) -> ModelSpec:
     """모델 요청에 쓸 한 줄. 없으면 UnknownModel, 꺼져 있으면 DisabledModel."""
     spec = catalog.get(name)
     if spec is None:
-        raise UnknownModel(f"대응표에 없는 모델 이름: {name}")
+        raise UnknownModel(name)
     if not spec.enabled:
-        raise DisabledModel(f"꺼 둔 모델 이름: {name}")
+        raise DisabledModel(name)
     return spec
 
 
@@ -89,5 +108,5 @@ def check_inputs(request: ModelRequest, spec: ModelSpec) -> None:
     unsupported = request.input_kinds() - set(spec.input_kinds)
     if unsupported:
         raise UnsupportedInput(
-            f"모델 {spec.name} 이 받지 않는 내용: {sorted(unsupported)}"
+            spec.name, tuple(sorted(unsupported)), tuple(spec.input_kinds)
         )
